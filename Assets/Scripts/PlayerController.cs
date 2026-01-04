@@ -14,7 +14,7 @@ public class PlayerController : MonoBehaviour
     private const float moveSpeed = 3.1f;
     private const float sprintSpeed = 1.8f;
     private const float sneakSpeed = 0.5f;
-    private const float playerColliderRadius = 0.45f;
+    private const float playerColliderRadius = 0.5f;
     private const float slopeLimit = 0.5f;
     private bool hasJumped;
     private bool risingJump;
@@ -47,7 +47,7 @@ public class PlayerController : MonoBehaviour
         if (paused) return;
 
         //Debug launching
-        if (Input.GetMouseButtonDown(0)) LaunchPlayer();
+        if (Input.GetMouseButtonDown(1)) LaunchPlayer();
 
         //Launch stun
         if (launchStunTime > 0) launchStunTime -= Time.deltaTime;
@@ -143,7 +143,7 @@ public class PlayerController : MonoBehaviour
     //Launch player in given direction
     public void LaunchPlayer(Vector3 direction = default)
     {
-        if (direction == default) direction = Random.onUnitSphere * 0.2f;
+        if (direction == default) direction = Random.onUnitSphere * 0.1f;
         Debug.DrawRay(transform.position, direction, Color.cyan, 1.5f);
         hasJumped = true;
         risingJump = true;
