@@ -9,13 +9,13 @@ public class PlayerController : MonoBehaviour
 
     [Header("Controls")]
     public bool paused;
-    public float jumpStartEval = 0.5f;
+    private const float jumpStartEval = 0.5f;
     private const float lookSpeed = 0.1f;
     private const float moveSpeed = 3.1f;
     private const float sprintSpeed = 1.8f;
     private const float sneakSpeed = 0.5f;
-    private const float playerColliderRadius = 0.5f;
-    private const float slopeLimit = 0.5f;
+    private const float playerColliderRadius = 0.4f;
+    private const float slopeLimit = 0.5f; //60 degrees
     private bool hasJumped;
     private bool risingJump;
     private bool wasLaunched;
@@ -28,13 +28,23 @@ public class PlayerController : MonoBehaviour
     private bool moving;
     private Vector2 movementInput;
     private Vector3 movementDir;
-    public Vector3 launchVector;
+    private Vector3 launchVector;
     private Vector3 slopeDir;
     private Vector3 surfaceNormals = default;
     private RaycastHit wallCollision;
     public LayerMask groundLayers;
     private const float GravitationalForce = 9.9f;
     public AnimationCurve gravityCurve;
+
+    [Header("Inventory")]
+    public Transform selectionShellObject;
+    public MeshFilter selectionShellMesh;
+    private bool isOutlined;
+    public GameObject interactWith;
+    public byte heldItemIndex;
+    public Item[] inventory = new Item[5];
+    public LayerMask interactLayers;
+    public Transform interactIcon;
 
     public void Start()
     {
@@ -45,6 +55,28 @@ public class PlayerController : MonoBehaviour
     {
         //Pause cant move
         if (paused) return;
+
+        //Looking at raycast
+        if (Physics.SphereCast(head.position, 0.05f, head.forward, out RaycastHit interact, 2.95f, interactLayers)) {
+            if (!interactIcon.gameObject.activeSelf) interactIcon.gameObject.SetActive(true);
+            if (interactWith == null) interactWith = interact.collider.gameObject;
+            if (!isOutlined) {
+                if (interact.collider.gameObject.TryGetComponent<MeshFilter>(out MeshFilter m)) {
+                    isOutlined = true;
+                    selectionShellMesh.mesh = m.mesh;
+                    selectionShellObject.SetPositionAndRotation(interact.collider.gameObject.transform.position, interact.collider.gameObject.transform.rotation);
+                    selectionShellObject.localScale = interact.collider.gameObject.transform.localScale;
+                }
+            }
+            interactIcon.position = interact.point;
+        } else {
+            if (interactIcon.gameObject.activeSelf) interactIcon.gameObject.SetActive(false);
+            if (interactWith != null) interactWith = null;
+            if (isOutlined) {
+                selectionShellMesh.mesh = null;
+                isOutlined = false;
+            }
+        }
 
         //Debug launching
         if (Input.GetMouseButtonDown(1)) LaunchPlayer();
@@ -72,6 +104,13 @@ public class PlayerController : MonoBehaviour
             if (Physics.SphereCast(transform.position, playerColliderRadius, Vector3.down, out RaycastHit floor, Mathf.Max(mov, 1 - playerColliderRadius), groundLayers)) {
                 float dis = Vector3.Distance(floor.point, transform.position - (Vector3.up * Mathf.Max(mov, 1 - playerColliderRadius)));
                 surfaceNormals = floor.normal;
+                /* Sliding down slopes while standing still doesnt make much sense
+                if (surfaceNormals.y < 1) {
+                    //Slide down a surface
+                    slopeDir = Time.deltaTime * Vector3.ProjectOnPlane(Vector3.down, surfaceNormals);
+                    if (!moving && slopeDir.y < 0) transform.position += (1 - surfaceNormals.y) * Friction() * slopeDir;
+                } else slopeDir = default;
+                */
                 if (surfaceNormals.y > slopeLimit) {
                     //Surface you can stand on
                     transform.position = new Vector3(transform.position.x, floor.point.y + Mathf.Clamp01(transform.position.y - floor.point.y) + Mathf.Clamp(playerColliderRadius - 0.01f - dis, 0, playerColliderRadius), transform.position.z);
@@ -81,9 +120,14 @@ public class PlayerController : MonoBehaviour
                     jumpInputBuffer = Mathf.Clamp(jumpInputBuffer + Time.deltaTime, 0, maxJumpBuffer);
                 } else {
                     //Normals of the surface are too steep: Start sliding & cant jump off it
-                    hasJumped = true;
+                    if (jumpInputBuffer > 0) jumpInputBuffer -= Time.deltaTime * (isSprinting ? sprintSpeed : 1);
+                    else {
+                        jumpInputBuffer = 0;
+                        hasJumped = true;
+                        slopeDir = Time.deltaTime * Vector3.ProjectOnPlane(Vector3.down, surfaceNormals);
+                    }
                     airtime = Mathf.Clamp(airtime + Time.deltaTime, 0.001f, 3);
-                    transform.position += (2.5f + gravityCurve.Evaluate(airtime) - surfaceNormals.y) * Friction() * slopeDir;
+                    transform.position += (2.5f + gravityCurve.Evaluate(airtime) - surfaceNormals.y) * Friction(floor.collider.tag) * slopeDir;
                 }
             } else {
                 if (jumpInputBuffer > 0) jumpInputBuffer -= Time.deltaTime * (isSprinting ? sprintSpeed : 1);
@@ -201,6 +245,18 @@ public class PlayerController : MonoBehaviour
         isSprinting = false;
         if (ctx.started) isSneaking = true;
         if (ctx.canceled) isSneaking = false;
+    }
+
+    //Grab input
+    public void Grab(InputAction.CallbackContext ctx)
+    {
+        if (ctx.started) {
+            if (interactWith != null) {
+                if (interactWith.TryGetComponent<Item>(out Item script)) {
+                    script.Grab();
+                }
+            }
+        }
     }
     #endregion
 }
