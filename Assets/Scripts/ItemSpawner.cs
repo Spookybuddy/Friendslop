@@ -2,14 +2,38 @@ using UnityEngine;
 
 public class ItemSpawner : MonoBehaviour
 {
-    public ItemObject[] spawnableItems;
+    public ItemSpawnSettings[] spawnableItems;
+    public int spawnWeightTotal = 0;
+    public byte baseItemSpawnCount = 5;
+    public sbyte amountVariation = 1;
 
     private void Start()
     {
-        for (int i = 0; i < spawnableItems.Length; i++) {
-            Vector3 pos = Random.insideUnitCircle * 10;
-            (pos.z, pos.y) = (pos.y, pos.z);
-            Instantiate(spawnableItems[i].prefab, pos + Vector3.up, Quaternion.identity);
+        for (int i = 0; i < spawnableItems.Length; i++) spawnWeightTotal += spawnableItems[i].spawnWeight;
+        Spawn();
+    }
+
+    private void Spawn()
+    {
+        int spawn = baseItemSpawnCount + Random.Range(-amountVariation, amountVariation);
+        for (int a = 0; a < spawn; a++) {
+            int index = Random.Range(0, spawnWeightTotal);
+            float num3 = 0;
+            if (spawnableItems.Length > 1) {
+                for (int i = 0; i < spawnableItems.Length; i++) {
+                    num3 += spawnableItems[i].spawnWeight;
+                    if (num3 >= index) {
+                        Vector3 pos = Random.insideUnitCircle * 10;
+                        (pos.z, pos.y) = (pos.y, pos.z);
+                        Instantiate(spawnableItems[i].item.prefab, pos + Vector3.up, Quaternion.identity);
+                        break;
+                    }
+                }
+            } else {
+                Vector3 pos = Random.insideUnitCircle * 10;
+                (pos.z, pos.y) = (pos.y, pos.z);
+                Instantiate(spawnableItems[0].item.prefab, pos + Vector3.up, Quaternion.identity);
+            }
         }
     }
 }

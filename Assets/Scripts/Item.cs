@@ -34,6 +34,7 @@ public class Item : MonoBehaviour
         }
     }
 
+    //Use item's preferred gravity style
     public void Gravity(bool on)
     {
         if (rig == null) isFalling = on;
@@ -41,6 +42,15 @@ public class Item : MonoBehaviour
         else rig.Sleep();
     }
 
+    //Hit item
+    public void ApplyForce(Vector3 point, Vector3 force)
+    {
+        if (rig == null) return;
+
+        rig.AddForceAtPosition(force, point, ForceMode.Impulse);
+    }
+
+    //Player grabs item
     public void Grab()
     {
         if (isHeld) return;

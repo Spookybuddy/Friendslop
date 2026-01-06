@@ -549,7 +549,11 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   spawnableItems:
-  - {fileID: 11400000, guid: e0ebd4aa145daff41b154fa645bac5df, type: 2}
+  - item: {fileID: 11400000, guid: e0ebd4aa145daff41b154fa645bac5df, type: 2}
+    spawnWeight: 100
+  spawnWeightTotal: 0
+  baseItemSpawnCount: 5
+  amountVariation: 1
 --- !u!4 &526962526
 Transform:
   m_ObjectHideFlags: 0
