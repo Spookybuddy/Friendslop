@@ -37,9 +37,9 @@ public class PlayerController : MonoBehaviour
     public AnimationCurve gravityCurve;
 
     [Header("Inventory")]
+    public int playerStrength = 10;
     public Transform selectionShellObject;
     public MeshFilter selectionShellMesh;
-    private bool isOutlined;
     public GameObject interactWith;
     public byte heldItemIndex;
     public Item[] inventory = new Item[5];
@@ -60,22 +60,17 @@ public class PlayerController : MonoBehaviour
         if (Physics.SphereCast(head.position, 0.05f, head.forward, out RaycastHit interact, 2.95f, interactLayers)) {
             if (!interactIcon.gameObject.activeSelf) interactIcon.gameObject.SetActive(true);
             if (interactWith == null) interactWith = interact.collider.gameObject;
-            if (!isOutlined) {
-                if (interact.collider.gameObject.TryGetComponent<MeshFilter>(out MeshFilter m)) {
-                    isOutlined = true;
+            if (interact.collider.gameObject.TryGetComponent<MeshFilter>(out MeshFilter m)) {
+                if (selectionShellMesh.mesh != m.mesh) {
                     selectionShellMesh.mesh = m.mesh;
-                    selectionShellObject.SetPositionAndRotation(interact.collider.gameObject.transform.position, interact.collider.gameObject.transform.rotation);
-                    selectionShellObject.localScale = interact.collider.gameObject.transform.localScale;
+                    selectionShellObject.SetParent(interact.collider.transform, false);
                 }
             }
             interactIcon.position = interact.point;
         } else {
             if (interactIcon.gameObject.activeSelf) interactIcon.gameObject.SetActive(false);
             if (interactWith != null) interactWith = null;
-            if (isOutlined) {
-                selectionShellMesh.mesh = null;
-                isOutlined = false;
-            }
+            if (selectionShellMesh.mesh != null) selectionShellMesh.mesh = null;
         }
 
         //Debug launching
@@ -176,12 +171,28 @@ public class PlayerController : MonoBehaviour
         else if (Physics.SphereCast(transform.position + Vector3.up * 0.3f, playerColliderRadius, inVector, out wallCollision, Mathf.Max(inVector.magnitude - playerColliderRadius, 0.1f), groundLayers)) Debug.DrawLine(wallCollision.point, transform.position, Color.red);
         else if (checkA) return inVector;
         else return Vector3.ProjectOnPlane(inVector, surfaceNormals) + Friction() * Mathf.Pow(1.5f - surfaceNormals.y, 2) * slopeDir;
+
+        PropCollisionCheck(wallCollision, inVector);
+
         //When collide, raycast again with new projection before moving
         if (wallCollision.normal.y <= slopeLimit) wallCollision.normal = new Vector3(wallCollision.normal.x, 0, wallCollision.normal.z);
         Vector3 newMov = Vector3.ProjectOnPlane(inVector, wallCollision.normal);
-        if (Physics.SphereCast(transform.position + Vector3.down * 0.3f, playerColliderRadius, newMov, out RaycastHit wall, Mathf.Max(newMov.magnitude - playerColliderRadius, 0.1f), groundLayers)) return default;
-        else if (Physics.SphereCast(transform.position + Vector3.up * 0.3f, playerColliderRadius, newMov, out RaycastHit wall2, Mathf.Max(newMov.magnitude - playerColliderRadius, 0.1f), groundLayers)) return default;
+        if (Physics.SphereCast(transform.position + Vector3.down * 0.3f, playerColliderRadius, newMov, out RaycastHit wall, Mathf.Max(newMov.magnitude - playerColliderRadius, 0.1f), groundLayers)) return PropCollisionCheck(wall, newMov);
+        else if (Physics.SphereCast(transform.position + Vector3.up * 0.3f, playerColliderRadius, newMov, out RaycastHit wall2, Mathf.Max(newMov.magnitude - playerColliderRadius, 0.1f), groundLayers)) return PropCollisionCheck(wall2, newMov);
         else return newMov;
+    }
+
+    //Apply movement into any props
+    private Vector3 PropCollisionCheck(RaycastHit hit, Vector3 inVector)
+    {
+        //Prop interaction
+        if (hit.collider.gameObject.TryGetComponent<Item>(out Item kicked)) {
+            if (kicked.item.weight < playerStrength) {
+                kicked.ApplyForce(wallCollision.point, inVector * playerStrength);
+                return inVector * (1 - kicked.item.weight / (float)playerStrength);
+            } else return default;
+        }
+        return default;
     }
 
     //Launch player in given direction

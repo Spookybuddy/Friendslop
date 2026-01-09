@@ -12,3 +12,11 @@ public class ItemObject : ScriptableObject
     [Tooltip("How object falls when it does not have a rigidbody")]
     public AnimationCurve gravityCurve;
 }
+
+[System.Serializable]
+public struct ItemSpawnSettings
+{
+    public ItemObject item;
+    [Range(0, 255)]
+    public byte spawnWeight;
+}

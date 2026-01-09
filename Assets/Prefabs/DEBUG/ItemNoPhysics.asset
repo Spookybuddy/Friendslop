@@ -10,10 +10,10 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 0e9f029750427ac43bfb689950292681, type: 3}
-  m_Name: ItemTest
+  m_Name: ItemNoPhysics
   m_EditorClassIdentifier: 
-  prefab: {fileID: 4261115914023007176, guid: 47e71033fe09e964db9dcfe4d027b78b, type: 3}
-  weight: 1
+  prefab: {fileID: 4199838234043787772, guid: 4dd5e8410b599f44083dbd8736cfcdc3, type: 3}
+  weight: 0
   grabSFX: {fileID: 0}
   dropSFX: {fileID: 0}
   useSFX: {fileID: 0}
@@ -37,30 +37,6 @@ MonoBehaviour:
       tangentMode: 0
       weightedMode: 0
       inWeight: 0
-      outWeight: 0
-    m_PreInfinity: 2
-    m_PostInfinity: 2
-    m_RotationOrder: 4
-  bounceAnimation:
-    serializedVersion: 2
-    m_Curve:
-    - serializedVersion: 3
-      time: 0
-      value: 0
-      inSlope: 0
-      outSlope: 0
-      tangentMode: 34
-      weightedMode: 0
-      inWeight: 0
-      outWeight: 0.33333334
-    - serializedVersion: 3
-      time: 1
-      value: 0
-      inSlope: 0
-      outSlope: 0
-      tangentMode: 34
-      weightedMode: 0
-      inWeight: 0.33333334
       outWeight: 0
     m_PreInfinity: 2
     m_PostInfinity: 2
