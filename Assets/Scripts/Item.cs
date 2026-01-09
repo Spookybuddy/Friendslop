@@ -4,6 +4,8 @@ public class Item : MonoBehaviour
 {
     public ItemObject item;
     public Rigidbody rig;
+    public float sphereCastRadius = 0.2f;
+    public float groundOffset = 0.2f;
     public bool isFalling;
     private float airtime;
     private const float GRAV = 9;
@@ -13,7 +15,7 @@ public class Item : MonoBehaviour
     // Start is called before the first frame update
     void Start()
     {
-        if (Physics.SphereCast(transform.position, 0.2f, Vector3.down, out RaycastHit hit, 0.3f)) Gravity(false);
+        if (Physics.SphereCast(transform.position, sphereCastRadius, Vector3.down, out RaycastHit hit, groundOffset)) Gravity(false);
         else Gravity(true);
     }
 
@@ -23,10 +25,10 @@ public class Item : MonoBehaviour
 
         //Gravity curve
         if (isFalling) {
-            if (Physics.SphereCast(transform.position, 0.2f, Vector3.down, out RaycastHit hit, 0.3f)) {
+            if (Physics.SphereCast(transform.position, sphereCastRadius, Vector3.down, out RaycastHit hit, groundOffset)) {
                 isFalling = false;
                 airtime = 0;
-                transform.position = hit.point + 0.25f * Vector3.up;
+                transform.position = hit.point + groundOffset * Vector3.up;
             } else {
                 transform.position += item.gravityCurve.Evaluate(airtime) * GRAV * Time.deltaTime * Vector3.down;
                 airtime += Time.deltaTime;

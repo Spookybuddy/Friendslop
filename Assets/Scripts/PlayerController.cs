@@ -189,7 +189,8 @@ public class PlayerController : MonoBehaviour
         if (hit.collider.gameObject.TryGetComponent<Item>(out Item kicked)) {
             if (kicked.item.weight < playerStrength) {
                 kicked.ApplyForce(wallCollision.point, inVector * playerStrength);
-            }
+                return inVector * (1 - kicked.item.weight / (float)playerStrength);
+            } else return default;
         }
         return default;
     }

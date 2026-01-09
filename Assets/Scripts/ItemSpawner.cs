@@ -15,7 +15,7 @@ public class ItemSpawner : MonoBehaviour
 
     private void Spawn()
     {
-        int spawn = baseItemSpawnCount + Random.Range(-amountVariation, amountVariation);
+        int spawn = baseItemSpawnCount + Random.Range(-amountVariation, amountVariation + 1);
         for (int a = 0; a < spawn; a++) {
             int index = Random.Range(0, spawnWeightTotal);
             float num3 = 0;
