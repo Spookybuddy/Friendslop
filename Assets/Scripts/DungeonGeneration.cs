@@ -5,23 +5,26 @@ using UnityEngine;
 public class DungeonGeneration : MonoBehaviour
 {
     public Dungeon dungeon;
-    public Transform dungeonTileParent;
-    public uint currentSize;
-    public List<Transform> openDoorways = new List<Transform>();
-    public float giveUp = 0;
-    public Coroutine executing;
-    public int tileID = 0;
+    private Transform dungeonTileParent;
+    private uint currentSize;
+    private List<Transform> openDoorways = new List<Transform>();
+    private List<GameObject> destroyDoorways = new List<GameObject>();
+    private float giveUp = 0;
+    private Coroutine executing;
+    private int tileID = 0;
 
     [Header("Beizer Paths")]
-    public int quality = 40;
+    public int quality = nomialSize;
     public GameObject line;
-    private Vector3[] points;
+    private Vector3[] pathwayCoordinates;
+    private Vector3[] pathwayDirection;
     private const byte nomialSize = 4;
     private readonly byte[] binomial = new byte[nomialSize] { 1, 3, 3, 1 };
-    private Vector3[] coordinates = new Vector3[nomialSize];
+    private Vector3[] doorwayCoordinates = new Vector3[nomialSize];
 
     public void Start()
     {
+        quality = Mathf.Max(quality, nomialSize);
         dungeonTileParent = Instantiate(new GameObject(), transform).transform;
         Routine();
     }
@@ -44,7 +47,7 @@ public class DungeonGeneration : MonoBehaviour
         currentSize = 0;
         openDoorways.Add(dungeonTileParent);
         while (currentSize < dungeon.targetSurfaceArea) {
-            yield return new WaitForSeconds(0.5f);
+            yield return new WaitForEndOfFrame();
 
             if (openDoorways.Count < 1) {
                 Debug.LogWarning($"Ran out of doors after {currentSize}m");
@@ -73,15 +76,19 @@ public class DungeonGeneration : MonoBehaviour
             newTile.transform.position = openDoorways[fromDoor].position + openDoorways[fromDoor].forward * dungeon.tileset[tileIndex].spawnSpacing;
             newTile.transform.LookAt(openDoorways[fromDoor].position);
             Vector3 dir = Vector3.up * Mathf.Sign(Random.Range(-1, 1));
+            bool skip = false;
             while (Vector3.Dot(openDoorways[fromDoor].forward, newDoors[toDoor].forward) >= -dungeon.dotThreshold) {
                 newTile.transform.Rotate(dir);
                 giveUp += Time.deltaTime;
-                if (giveUp > 3) {
+                if (giveUp > 5) {
                     Debug.LogError($"Could not match rotation :(");
-                    giveUp = 0;
+                    newDoors.Clear();
+                    Destroy(newTile);
+                    skip = true;
                     break;
                 }
             }
+            if (skip) continue;
             giveUp = 0;
             Vector3 tdward = newDoors[toDoor].position + newDoors[toDoor].forward;
             newTile.transform.position += newTile.transform.position - tdward;
@@ -92,7 +99,6 @@ public class DungeonGeneration : MonoBehaviour
             Vector3 bounds = transform.localScale;
             if (transform.TryGetComponent<BoxCollider>(out BoxCollider b)) bounds = b.size;
             Collider[] collide = Physics.OverlapBox(newTile.transform.position, bounds, newTile.transform.rotation, 256);
-            bool skip = false;
             for (int i = 0; i < collide.Length; i++) {
                 if (collide[i] != null && collide[i].transform != newTile.transform) {
                     Debug.LogWarning($"#{tileID} overlaped with {collide[i].name}!");
@@ -105,23 +111,25 @@ public class DungeonGeneration : MonoBehaviour
             if (skip) continue;
 
             //Pathways
-            coordinates = new Vector3[nomialSize] { openDoorways[fromDoor].position, fdward, tdward, newDoors[toDoor].position };
+            doorwayCoordinates = new Vector3[nomialSize] { openDoorways[fromDoor].position, fdward, tdward, newDoors[toDoor].position };
             Beizer();
+            Directionalize(openDoorways[fromDoor].forward, -newDoors[toDoor].forward);
             GameObject path = Instantiate(line, dungeonTileParent);
             if (path.TryGetComponent<LineRenderer>(out LineRenderer render)) {
                 path.transform.localEulerAngles = Vector3.right * 90;
-                render.positionCount = points.Length;
-                render.SetPositions(points);
+                render.positionCount = pathwayCoordinates.Length;
+                render.SetPositions(pathwayCoordinates);
+                /*
+                Mesh mesh = new Mesh();
+                render.BakeMesh(mesh);
+                if (path.TryGetComponent<MeshCollider>(out MeshCollider meshCollider)) meshCollider.sharedMesh = mesh;
+                if (path.TryGetComponent<MeshFilter>(out MeshFilter meshFilter)) meshFilter.sharedMesh = mesh;
+                */
             }
-            /*
-            GameObject path = Instantiate(line, dungeonTileParent);
-            if (path.TryGetComponent<LineRenderer>(out LineRenderer render)) {
-                render.positionCount = coordinates.Length;
-                render.SetPositions(coordinates);
-            }
-            */
 
             //Remove from lists
+            destroyDoorways.Add(openDoorways[fromDoor].gameObject);
+            destroyDoorways.Add(newDoors[toDoor].gameObject);
             openDoorways.RemoveAt(fromDoor);
             newDoors.RemoveAt(toDoor);
             openDoorways.AddRange(newDoors);
@@ -129,21 +137,38 @@ public class DungeonGeneration : MonoBehaviour
             currentSize += dungeon.tileset[tileIndex].meterage;
             tileID++;
         }
-        for (int i = 0; i < openDoorways.Count; i++) Destroy(openDoorways[i].gameObject);
+        for (int i = 1; i < destroyDoorways.Count; i++) Destroy(destroyDoorways[i]);
+        Debug.Log($"Generated a dungeon covering {currentSize}m");
     }
 
     private void Beizer()
     {
-        points = new Vector3[quality / 2 + 1];
-        for (int l = 0; l <= quality / 2; l++) {
+        pathwayCoordinates = new Vector3[quality + 1];
+        for (int l = 0; l <= quality; l++) {
             float polynomialX = 0, polynomialZ = 0;
-            float t = 2.0f * l / quality;
+            float t = (float)l / quality;
             for (int x = 0; x < nomialSize; x++) {
                 float C = binomial[x] * Mathf.Pow(t, x) * Mathf.Pow(1 - t, nomialSize - 1 - x);
-                polynomialX += C * coordinates[x].x;
-                polynomialZ += C * coordinates[x].z;
+                polynomialX += C * doorwayCoordinates[x].x;
+                polynomialZ += C * doorwayCoordinates[x].z;
             }
-            points[l] = new Vector3(polynomialX, 0, polynomialZ);
+            pathwayCoordinates[l] = new Vector3(polynomialX, 0, polynomialZ);
+        }
+    }
+
+    private void Directionalize(Vector3 dirStart, Vector3 dirEnd)
+    {
+        pathwayDirection = new Vector3[quality + 1];
+        pathwayDirection[0] = dirStart;
+        pathwayDirection[quality] = dirEnd;
+        Debug.DrawRay(pathwayCoordinates[0], pathwayDirection[0], Color.blue, 5);
+        Debug.DrawRay(pathwayCoordinates[0], Vector3.Cross(pathwayDirection[0], Vector3.up), Color.red, 5);
+        Debug.DrawRay(pathwayCoordinates[quality], pathwayDirection[quality], Color.blue, 5);
+        Debug.DrawRay(pathwayCoordinates[quality], Vector3.Cross(pathwayDirection[quality], Vector3.up), Color.red, 5);
+        for (int i = 1; i < quality; i++) {
+            pathwayDirection[i] = (pathwayCoordinates[i + 1] - pathwayCoordinates[i]).normalized;
+            Debug.DrawRay(pathwayCoordinates[i], pathwayDirection[i], Color.blue, 5);
+            Debug.DrawRay(pathwayCoordinates[i], Vector3.Cross(pathwayDirection[i], Vector3.up), Color.red, 5);
         }
     }
 }

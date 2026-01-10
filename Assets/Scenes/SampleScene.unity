@@ -134,7 +134,7 @@ GameObject:
   - component: {fileID: 195874364}
   - component: {fileID: 195874365}
   m_Layer: 8
-  m_Name: Cube (1)
+  m_Name: Prevention
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -149,8 +149,8 @@ Transform:
   m_GameObject: {fileID: 195874363}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -0, y: 0, z: -1}
-  m_LocalScale: {x: 20, y: 1, z: 1}
+  m_LocalPosition: {x: -0, y: 0, z: -2}
+  m_LocalScale: {x: 50, y: 1, z: 6}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 564876918}
@@ -671,12 +671,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   dungeon: {fileID: 11400000, guid: adce7b453adb6274ab450c208078b593, type: 2}
-  dungeonTileParent: {fileID: 0}
-  currentSize: 0
-  openDoorways: []
-  giveUp: 0
-  tileID: 0
-  quality: 20
+  quality: 4
   line: {fileID: 2947222615814322716, guid: 77a1d959d96f98c4198a1f49c961bb84, type: 3}
 --- !u!1 &584868095
 GameObject:

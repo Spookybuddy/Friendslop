@@ -10,7 +10,8 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: c4ef143ec9e593f40ae24312fdf40ca0, type: 3}
-  m_Name: TileTest
+  m_Name: TileTestY
   m_EditorClassIdentifier: 
   prefab: {fileID: 2965133960910530711, guid: 484ad01a1bb62164f87636437df14af4, type: 3}
-  meterage: 1
+  meterage: 2
+  spawnSpacing: 8
