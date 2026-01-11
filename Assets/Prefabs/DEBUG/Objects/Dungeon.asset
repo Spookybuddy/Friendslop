@@ -13,8 +13,12 @@ MonoBehaviour:
   m_Name: Dungeon
   m_EditorClassIdentifier: Assembly-CSharp::Dungeon
   tileset:
-  - {fileID: 11400000, guid: 94b665b72c2866445a727feb0ce1d917, type: 2}
-  - {fileID: 11400000, guid: b3eeb35b23ae7724f80f3d49201035d6, type: 2}
-  - {fileID: 11400000, guid: 2a0d8c7ff2c487249aa840e9295b1c26, type: 2}
-  targetSurfaceArea: 4
+  - tile: {fileID: 11400000, guid: 94b665b72c2866445a727feb0ce1d917, type: 2}
+    spawnWeight: 4
+  - tile: {fileID: 11400000, guid: b3eeb35b23ae7724f80f3d49201035d6, type: 2}
+    spawnWeight: 16
+  - tile: {fileID: 11400000, guid: 2a0d8c7ff2c487249aa840e9295b1c26, type: 2}
+    spawnWeight: 10
+  weightSummation: 30
+  targetSurfaceArea: 20
   dotThreshold: 0.7

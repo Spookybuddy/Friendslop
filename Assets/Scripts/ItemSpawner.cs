@@ -17,12 +17,12 @@ public class ItemSpawner : MonoBehaviour
     {
         int spawn = baseItemSpawnCount + Random.Range(-amountVariation, amountVariation + 1);
         for (int a = 0; a < spawn; a++) {
-            int index = Random.Range(0, spawnWeightTotal);
-            float num3 = 0;
+            int desiredWeight = Random.Range(0, spawnWeightTotal);
+            float weightSum = 0;
             if (spawnableItems.Length > 1) {
                 for (int i = 0; i < spawnableItems.Length; i++) {
-                    num3 += spawnableItems[i].spawnWeight;
-                    if (num3 >= index) {
+                    weightSum += spawnableItems[i].spawnWeight;
+                    if (weightSum >= desiredWeight) {
                         Vector3 pos = Random.insideUnitCircle * 10;
                         (pos.z, pos.y) = (pos.y, pos.z);
                         Instantiate(spawnableItems[i].item.prefab, pos + Vector3.up, Quaternion.identity);
