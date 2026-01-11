@@ -10,9 +10,12 @@ public class Dungeon : ScriptableObject
     public uint weightSummation = 0;
     [Tooltip("The target total meterage of spawned Tiles")]
     public uint targetSurfaceArea;
-    [Tooltip("Dot product greater than this value allows Tile to spawn")]
-    [Range(0f, 1f)]
-    public float dotThreshold = 0.9f;
+    [Tooltip("Min variation added to tile rotation")]
+    [Range(0f, 90f)]
+    public float minRotationVariation = 15;
+    [Tooltip("Max variation added to tile rotation")]
+    [Range(0f, 120f)]
+    public float maxRotationVariation = 45;
 
     [ContextMenu("Calculate Weight Sum")]
     public void SumWeights()

@@ -21,4 +21,5 @@ MonoBehaviour:
     spawnWeight: 10
   weightSummation: 30
   targetSurfaceArea: 20
-  dotThreshold: 0.7
+  minRotationVariation: 30
+  maxRotationVariation: 120

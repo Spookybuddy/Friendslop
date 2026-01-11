@@ -10,21 +10,18 @@ public class DungeonGeneration : MonoBehaviour
     private uint currentSize;
     private List<Transform> openDoorways = new List<Transform>();
     private List<GameObject> destroyDoorways = new List<GameObject>();
-    private float giveUp = 0;
     private Coroutine executing;
     private int tileID = 0;
 
     [Header("Beizer Paths")]
     public int quality = nomialSize;
     public float pathWidth = 2;
-    public GameObject line;
+    public GameObject pathPrefab;
     private Vector3[] pathwayCoordinates;
-    private Vector3[] pathwayDirection;
     private const byte nomialSize = 4;
     private readonly byte[] binomial = new byte[nomialSize] { 1, 3, 3, 1 };
     private Vector3[] doorwayCoordinates = new Vector3[nomialSize];
 
-    [ContextMenu("Generate")]
     public void Start()
     {
         quality = Mathf.Max(quality, nomialSize);
@@ -32,8 +29,14 @@ public class DungeonGeneration : MonoBehaviour
         Routine();
     }
 
+    [ContextMenu("Generate")]
     public void Routine()
     {
+        if (dungeonTileParent != null) Destroy(dungeonTileParent.gameObject);
+        tileID = 0;
+        currentSize = 0;
+        openDoorways.Clear();
+        destroyDoorways.Clear();
         if (executing != null) StopCoroutine(executing);
         executing = StartCoroutine(Generate());
     }
@@ -41,12 +44,8 @@ public class DungeonGeneration : MonoBehaviour
     public IEnumerator Generate()
     {
         if (dungeon == null) yield break;
-        tileID = 0;
-        openDoorways.Clear();
-        Destroy(dungeonTileParent.gameObject);
         dungeonTileParent = Instantiate(tileParent, transform).transform;
         dungeonTileParent.name = "DungeonParent";
-        currentSize = 0;
         openDoorways.Add(dungeonTileParent);
         while (currentSize < dungeon.targetSurfaceArea) {
             yield return new WaitForEndOfFrame();
@@ -54,7 +53,6 @@ public class DungeonGeneration : MonoBehaviour
             //No more open doorways
             if (openDoorways.Count < 1) {
                 Debug.LogWarning($"Ran out of doors after {currentSize}m");
-                currentSize = dungeon.targetSurfaceArea;
                 break;
             }
 
@@ -90,23 +88,10 @@ public class DungeonGeneration : MonoBehaviour
             Vector3 fdward = openDoorways[fromDoor].position + openDoorways[fromDoor].forward;
             newTile.transform.position = openDoorways[fromDoor].position + openDoorways[fromDoor].forward * dungeon.tileset[tileIndex].tile.spawnSpacing;
             newTile.transform.LookAt(openDoorways[fromDoor].position);
-            Vector3 dir = Vector3.up * Mathf.Sign(Random.Range(-1, 1));
-            bool skip = false;
 
-            //Rotate tile to have the new door mostly face the from door
-            while (Vector3.Dot(openDoorways[fromDoor].forward, newDoors[toDoor].forward) >= -dungeon.dotThreshold) {
-                newTile.transform.Rotate(dir);
-                giveUp += Time.deltaTime;
-                if (giveUp > 5) {
-                    Debug.LogError($"Could not match rotation :(");
-                    newDoors.Clear();
-                    Destroy(newTile);
-                    skip = true;
-                    break;
-                }
-            }
-            if (skip) continue;
-            giveUp = 0;
+            //Rotate tile to face new door towards from door with some random variation
+            float variation = Mathf.Sign(Random.Range(-1, 1)) * Random.Range(dungeon.minRotationVariation, dungeon.maxRotationVariation);
+            newTile.transform.Rotate(Vector3.down * (Vector3.SignedAngle(newTile.transform.forward, newDoors[toDoor].forward, Vector3.up) + variation));
 
             //Setup tile
             Vector3 tdward = newDoors[toDoor].position + newDoors[toDoor].forward;
@@ -116,8 +101,9 @@ public class DungeonGeneration : MonoBehaviour
 
             //Check if overlapping
             Vector3 bounds = transform.localScale;
-            if (transform.TryGetComponent<BoxCollider>(out BoxCollider b)) bounds = b.size;
+            if (newTile.transform.TryGetComponent<BoxCollider>(out BoxCollider b)) bounds = b.size;
             Collider[] collide = Physics.OverlapBox(newTile.transform.position, bounds, newTile.transform.rotation, 256);
+            bool skip = false;
             for (int i = 0; i < collide.Length; i++) {
                 if (collide[i] != null && collide[i].transform != newTile.transform) {
                     Debug.LogWarning($"#{tileID} overlaped with {collide[i].name}!");
@@ -132,7 +118,7 @@ public class DungeonGeneration : MonoBehaviour
             //Pathways after checking overlap so it doesnt kill itself
             doorwayCoordinates = new Vector3[nomialSize] { openDoorways[fromDoor].position, fdward, tdward, newDoors[toDoor].position };
             Beizer();
-            GameObject path = Instantiate(line);
+            GameObject path = Instantiate(pathPrefab);
             path.transform.SetParent(newTile.transform, true);
             path.name = $"#{tileID}'s Path";
             //Mesh
@@ -177,7 +163,7 @@ public class DungeonGeneration : MonoBehaviour
     private Mesh CreateMesh(Vector3 dirStart, Vector3 dirEnd)
     {
         //Get point's transform.right values
-        pathwayDirection = new Vector3[quality + 1];
+        Vector3[] pathwayDirection = new Vector3[quality + 1];
         pathwayDirection[0] = dirStart;
         pathwayDirection[quality] = dirEnd;
         for (int i = 1; i < quality; i++) pathwayDirection[i] = (pathwayCoordinates[i + 1] - pathwayCoordinates[i]).normalized;
