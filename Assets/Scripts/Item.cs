@@ -2,15 +2,18 @@ using UnityEngine;
 
 public class Item : MonoBehaviour
 {
+    [Tooltip("Scriptable object")]
     public ItemObject item;
+    [Tooltip("Rigidbody provided for physics. If not provided item will default to the gravity curve")]
     public Rigidbody rig;
+    [Tooltip("Radius of spherecast when detecting ground collision")]
     public float sphereCastRadius = 0.2f;
+    [Tooltip("Distance above ground to stop at when landing")]
     public float groundOffset = 0.2f;
-    public bool isFalling;
+    private bool isFalling;
     private float airtime;
     private const float GRAV = 9;
     public bool isHeld;
-    public bool asleep;
 
     // Start is called before the first frame update
     void Start()
@@ -21,8 +24,6 @@ public class Item : MonoBehaviour
 
     private void Update()
     {
-        if (rig != null) asleep = rig.IsSleeping();
-
         //Gravity curve
         if (isFalling) {
             if (Physics.SphereCast(transform.position, sphereCastRadius, Vector3.down, out RaycastHit hit, groundOffset)) {

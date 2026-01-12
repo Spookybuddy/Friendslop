@@ -11,3 +11,12 @@ public class Tile : ScriptableObject
     [Tooltip("The distance of center from previous tile")]
     public float spawnSpacing = 5;
 }
+
+[System.Serializable]
+public struct TileWithWeight
+{
+    [Tooltip("Tile scriptable object")]
+    public Tile tile;
+    [Tooltip("Weighted odds for this tile to spawn")]
+    public byte spawnWeight;
+}
