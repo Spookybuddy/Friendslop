@@ -2,6 +2,8 @@ using UnityEngine;
 
 public class ItemSpawner : MonoBehaviour
 {
+    //This script will be reworked once we figure out how we want items to be spawned/distributed
+    //Until then this simply serves as the testing for spawning items
     public ItemSpawnSettings[] spawnableItems;
     public int spawnWeightTotal = 0;
     public byte baseItemSpawnCount = 5;

@@ -1,25 +1,34 @@
 using System.Collections;
 using System.Collections.Generic;
+using Unity.AI.Navigation;
 using UnityEngine;
 
 public class DungeonGeneration : MonoBehaviour
 {
+    [Tooltip("The dungeon settings to use")]
     public Dungeon dungeon;
+    [Tooltip("The prefab used for the tile parent")]
     public GameObject tileParent;
+    [Tooltip("The navigation surface to access and bake")]
+    public NavMeshSurface navMeshSurface;
     private Transform dungeonTileParent;
     private uint currentSize;
+    private int tileID = 0;
     private List<Transform> openDoorways = new List<Transform>();
     private List<GameObject> destroyDoorways = new List<GameObject>();
     private Coroutine executing;
-    private int tileID = 0;
+    public bool dungeonGenerated = false;
 
     [Header("Beizer Paths")]
+    [Tooltip("The number of subdivisions along paths")]
     public int quality = nomialSize;
+    [Tooltip("How many meters wide the paths are")]
     public float pathWidth = 2;
+    [Tooltip("The path with mesh renderer & collider")]
     public GameObject pathPrefab;
-    private Vector3[] pathwayCoordinates;
     private const byte nomialSize = 4;
     private readonly byte[] binomial = new byte[nomialSize] { 1, 3, 3, 1 };
+    private Vector3[] pathwayCoordinates;
     private Vector3[] doorwayCoordinates = new Vector3[nomialSize];
 
     public void Start()
@@ -29,18 +38,21 @@ public class DungeonGeneration : MonoBehaviour
         Routine();
     }
 
+    //Reset vars and generate
     [ContextMenu("Generate")]
     public void Routine()
     {
         if (dungeonTileParent != null) Destroy(dungeonTileParent.gameObject);
         tileID = 0;
         currentSize = 0;
+        dungeonGenerated = false;
         openDoorways.Clear();
         destroyDoorways.Clear();
         if (executing != null) StopCoroutine(executing);
         executing = StartCoroutine(Generate());
     }
 
+    //Frame delayed generation
     public IEnumerator Generate()
     {
         if (dungeon == null) yield break;
@@ -140,6 +152,8 @@ public class DungeonGeneration : MonoBehaviour
             tileID++;
         }
         for (int i = 1; i < destroyDoorways.Count; i++) Destroy(destroyDoorways[i]);
+        navMeshSurface.BuildNavMesh();
+        dungeonGenerated = true;
         Debug.Log($"Generated a dungeon covering {currentSize}m");
     }
 

@@ -4,11 +4,16 @@ using UnityEngine;
 [CreateAssetMenu(fileName = "Item", menuName = "ScriptableObjects/Item", order = 4)]
 public class ItemObject : ScriptableObject
 {
+    [Tooltip("Item model")]
     public GameObject prefab;
+    [Tooltip("Carry weight stat")]
     public float weight;
-    public AudioClip grabSFX;
-    public AudioClip dropSFX;
-    public AudioClip useSFX;
+    [Tooltip("Clip played when grabbed. A random one will be selected when multiple clips are provided")]
+    public AudioClip[] grabSFX;
+    [Tooltip("Clip played when hitting the ground. A random one will be selected when multiple clips are provided")]
+    public AudioClip[] dropSFX;
+    [Tooltip("Clip played when used. A random one will be selected when multiple clips are provided")]
+    public AudioClip[] useSFX;
     [Tooltip("How object falls when it does not have a rigidbody")]
     public AnimationCurve gravityCurve;
 }
@@ -16,7 +21,9 @@ public class ItemObject : ScriptableObject
 [System.Serializable]
 public struct ItemSpawnSettings
 {
+    [Tooltip("Item scriptable object")]
     public ItemObject item;
+    [Tooltip("Weighted odds for this item to spawn")]
     [Range(0, 255)]
     public byte spawnWeight;
 }

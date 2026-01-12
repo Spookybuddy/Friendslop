@@ -13,13 +13,17 @@ MonoBehaviour:
   m_Name: Dungeon
   m_EditorClassIdentifier: Assembly-CSharp::Dungeon
   tileset:
-  - tile: {fileID: 11400000, guid: 94b665b72c2866445a727feb0ce1d917, type: 2}
-    spawnWeight: 4
-  - tile: {fileID: 11400000, guid: b3eeb35b23ae7724f80f3d49201035d6, type: 2}
-    spawnWeight: 16
-  - tile: {fileID: 11400000, guid: 2a0d8c7ff2c487249aa840e9295b1c26, type: 2}
+  - tile: {fileID: 11400000, guid: 3842fab2fc593654397d8e783038c390, type: 2}
+    spawnWeight: 28
+  - tile: {fileID: 11400000, guid: 0daa0e8317126eb4baf0d020af27a660, type: 2}
+    spawnWeight: 25
+  - tile: {fileID: 11400000, guid: 2adcbb62b1934d64d888f6f05c3f9191, type: 2}
+    spawnWeight: 20
+  - tile: {fileID: 11400000, guid: 9f7060e46d6f73f4299e0046dd4d38d1, type: 2}
     spawnWeight: 10
-  weightSummation: 30
-  targetSurfaceArea: 20
-  minRotationVariation: 30
-  maxRotationVariation: 120
+  - tile: {fileID: 11400000, guid: 0c6efbaa436f07c43840332bd2f1592f, type: 2}
+    spawnWeight: 16
+  weightSummation: 129
+  targetSurfaceArea: 1000
+  minRotationVariation: 33
+  maxRotationVariation: 66
