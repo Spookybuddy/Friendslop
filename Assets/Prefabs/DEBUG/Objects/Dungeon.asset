@@ -24,6 +24,6 @@ MonoBehaviour:
   - tile: {fileID: 11400000, guid: 0c6efbaa436f07c43840332bd2f1592f, type: 2}
     spawnWeight: 16
   weightSummation: 129
-  targetSurfaceArea: 1000
-  minRotationVariation: 33
-  maxRotationVariation: 66
+  targetSurfaceArea: 3093
+  minRotationVariation: 30
+  maxRotationVariation: 120

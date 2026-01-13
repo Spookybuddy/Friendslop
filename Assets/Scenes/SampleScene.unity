@@ -461,10 +461,13 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 55b79c47d26a26c40aab3c6cc16df1ec, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  seed: 67
   dungeon: {fileID: 11400000, guid: adce7b453adb6274ab450c208078b593, type: 2}
   tileParent: {fileID: 2550849488876097924, guid: 462e6b964829db44f8712084c62b04cd,
     type: 3}
   navMeshSurface: {fileID: 564876920}
+  validDoorways: []
+  generationTime: 0
   dungeonGenerated: 0
   quality: 8
   pathWidth: 2
