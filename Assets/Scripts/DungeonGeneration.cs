@@ -28,12 +28,12 @@ public class DungeonGeneration : MonoBehaviour
     private uint currentSize;
     private float avgDist = 10;
     private int tileID = 0;
-    //private List<Transform> openDoorways = new List<Transform>();
-    private List<GameObject> destroyDoorways = new List<GameObject>();
-    public List<TileCheck> validDoorways = new List<TileCheck>();
+    private readonly List<GameObject> destroyDoorways = new List<GameObject>();
+    private readonly List<TileCheck> validDoorways = new List<TileCheck>();
     public float generationTime = 0;
     private Coroutine executing;
     public bool dungeonGenerated = false;
+    public bool Debugging = false;
     System.Random rng;
 
     [Header("Beizer Paths")]
@@ -43,8 +43,8 @@ public class DungeonGeneration : MonoBehaviour
     public float pathWidth = 2;
     [Tooltip("The path with mesh renderer & collider")]
     public GameObject pathPrefab;
-    private const byte nomialSize = 4;
-    private readonly byte[] binomial = new byte[nomialSize] { 1, 3, 3, 1 };
+    private const byte nomialSize = 6;
+    private readonly byte[] binomial = new byte[nomialSize] { 1, 5, 10, 10, 5, 1 };
     private Vector3[] pathwayCoordinates;
     private Vector3[] doorwayCoordinates = new Vector3[nomialSize];
 
@@ -78,9 +78,30 @@ public class DungeonGeneration : MonoBehaviour
     public IEnumerator Generate()
     {
         if (dungeon == null) yield break;
+
+        //Entrance room spawned first
         dungeonTileParent = Instantiate(tileParent, transform).transform;
         dungeonTileParent.name = "DungeonParent";
-        validDoorways.Add(new TileCheck(dungeonTileParent, dungeon.tileset.Length));
+        if (dungeon.entranceRoom != null) {
+            GameObject entrance = Instantiate(dungeon.entranceRoom, dungeonTileParent);
+            for (int i = 0; i < entrance.transform.childCount; i++) {
+                if (entrance.transform.GetChild(i).CompareTag("Doorway")) validDoorways.Add(new TileCheck(entrance.transform.GetChild(i), dungeon.tileset.Length));
+            }
+            if (validDoorways.Count <= 0) {
+                if (Debugging) Debug.LogError($"No doorways found in Entrance {entrance.name}");
+                Destroy(entrance);
+                validDoorways.Add(new TileCheck(dungeonTileParent, dungeon.tileset.Length));
+            } else {
+                Vector3 bounds = transform.localScale;
+                if (entrance.transform.TryGetComponent<BoxCollider>(out BoxCollider b)) bounds = b.size;
+                entrance.transform.localPosition = Vector3.forward * bounds.z / 2;
+            }
+        } else {
+            if (Debugging) Debug.LogWarning($"No Entrance provided, using the Dungeon Tile Parent instead.");
+            validDoorways.Add(new TileCheck(dungeonTileParent, dungeon.tileset.Length));
+        }
+
+        //Tile spawn loop
         while (currentSize < dungeon.targetSurfaceArea) {
             //yield return new WaitForEndOfFrame(); //This was yielding different results everytime, whereas fixed time gives deterministic results
             yield return new WaitForFixedUpdate();
@@ -89,7 +110,7 @@ public class DungeonGeneration : MonoBehaviour
 
             //No more open doorways
             if (validDoorways.Count < 1) {
-                Debug.LogWarning($"Ran out of doors after {currentSize}m");
+                if (Debugging) Debug.LogWarning($"Ran out of doors after {currentSize}m");
                 break;
             }
 
@@ -114,7 +135,7 @@ public class DungeonGeneration : MonoBehaviour
                 if (!validDoorways[fromDoor].tilesChecked[i]) skip = false;
             }
             if (skip) {
-                Debug.Log($"{validDoorways[fromDoor].doorway.parent.name}'s {validDoorways[fromDoor].doorway.name} cannot fit any tile. Removed from list");
+                if (Debugging) Debug.Log($"{validDoorways[fromDoor].doorway.parent.name}'s {validDoorways[fromDoor].doorway.name} cannot fit any tile. Removed from list");
                 validDoorways.RemoveAt(fromDoor);
                 continue;
             }
@@ -123,7 +144,7 @@ public class DungeonGeneration : MonoBehaviour
             if (validDoorways[fromDoor].tilesChecked[tileIndex]) {
                 for (int i = 1; i < dungeon.tileset.Length; i++) {
                     if (!validDoorways[fromDoor].tilesChecked[(tileIndex + i) % dungeon.tileset.Length]) {
-                        Debug.Log($"{validDoorways[fromDoor].doorway.parent.name}'s {validDoorways[fromDoor].doorway.name} cannot fit {dungeon.tileset[tileIndex].tile.prefab.name}, changed to {dungeon.tileset[(tileIndex + i) % 5].tile.prefab.name}");
+                        if (Debugging) Debug.Log($"{validDoorways[fromDoor].doorway.parent.name}'s {validDoorways[fromDoor].doorway.name} cannot fit {dungeon.tileset[tileIndex].tile.prefab.name}, changed to {dungeon.tileset[(tileIndex + i) % 5].tile.prefab.name}");
                         tileIndex = i;
                         break;
                     }
@@ -151,7 +172,7 @@ public class DungeonGeneration : MonoBehaviour
                 else skip = true;
             }
             if (skip) {
-                Debug.LogWarning($"{validDoorways[fromDoor].doorway.parent.name}'s {validDoorways[fromDoor].doorway.name} could not fit {dungeon.tileset[tileIndex].tile.prefab.name}");
+                if (Debugging) Debug.Log($"{validDoorways[fromDoor].doorway.parent.name}'s {validDoorways[fromDoor].doorway.name} could not fit {dungeon.tileset[tileIndex].tile.prefab.name}");
                 newDoors.Clear();
                 Destroy(newTile);
                 validDoorways[fromDoor].tilesChecked[tileIndex] = true;
@@ -160,7 +181,7 @@ public class DungeonGeneration : MonoBehaviour
             newTile.transform.SetParent(dungeonTileParent, true);
 
             //Pathways after checking overlap so it doesnt kill itself
-            CreatePath(validDoorways[fromDoor].doorway, newDoors[toDoor].doorway, newTile.transform);
+            CreatePath(validDoorways[fromDoor].doorway, newDoors[toDoor].doorway, newTile.transform, avgDist / 3);
 
             //Remove from lists
             destroyDoorways.Add(validDoorways[fromDoor].doorway.gameObject);
@@ -177,16 +198,46 @@ public class DungeonGeneration : MonoBehaviour
         if (dungeon.moreConnections) {
             for (int i = 0; i < validDoorways.Count; i++) {
                 if (destroyDoorways.Contains(validDoorways[i].doorway.gameObject)) continue;
-                for (int j = i; j < validDoorways.Count; j++) {
-                    float dist = Vector3.Distance(validDoorways[i].doorway.position, validDoorways[j].doorway.position);
+                for (int j = i + 1; j < validDoorways.Count; j++) {
+                    //yield return new WaitForFixedUpdate();
+                    //generationTime += Time.deltaTime;
+
+                    //Already connected check
+                    if (destroyDoorways.Contains(validDoorways[j].doorway.gameObject) || destroyDoorways.Contains(validDoorways[i].doorway.gameObject)) continue;
+
+                    //Self check
+                    if (dungeon.selfConnections && validDoorways[i].doorway.parent == validDoorways[j].doorway.parent) continue;
+
+                    //Dot product check
                     float dot = Vector3.Dot(validDoorways[i].doorway.forward, validDoorways[j].doorway.forward);
                     if (dot > dungeon.dotLimit) continue;
-                    if (dist > avgDist * dungeon.distanceMultiplier) continue;
-                    if (validDoorways[i].doorway.parent == validDoorways[j].doorway.parent) continue;
-                    if (destroyDoorways.Contains(validDoorways[j].doorway.gameObject) || destroyDoorways.Contains(validDoorways[i].doorway.gameObject)) continue;
+
+                    //Distance checks
+                    float dist = Vector3.Distance(validDoorways[i].doorway.position, validDoorways[j].doorway.position);
+                    float dist2 = Vector3.Distance(WorldForward(validDoorways[i].doorway), WorldForward(validDoorways[j].doorway));
+                    if (dist > avgDist * dungeon.distanceMultiplier || dist2 > dist) continue;
+
+                    //Angle check
                     float theta = Mathf.Abs(Vector3.SignedAngle(validDoorways[i].doorway.forward, -validDoorways[j].doorway.forward, Vector3.up));
                     if (theta <= Mathf.Abs(dungeon.maxRotationVariation) && theta >= Mathf.Abs(dungeon.minRotationVariation)) {
-                        CreatePath(validDoorways[i].doorway, validDoorways[j].doorway, dungeonTileParent, $"Path {string.Format("{0:0.00}", dist)}m {string.Format("{0:0.00}", dot)}*");
+                        GameObject path = CreatePath(validDoorways[i].doorway, validDoorways[j].doorway, dungeonTileParent, avgDist / 2, $"Path {string.Format("{0:0.00}", dist)}m {string.Format("{0:0.00}", dot)}*");
+                        
+                        //Overlap check - Work on just doing math instead of waiting for physics update
+                        bool exit = false;
+                        for (int k = 1; k < quality; k++) {
+                            Debug.DrawRay(pathwayCoordinates[k], Vector3.up, Color.white, 5);
+                            if (Physics.SphereCast(pathwayCoordinates[k] + Vector3.up, pathWidth / 2, Vector3.down, out RaycastHit hit, pathWidth, 256)) {
+                                if (hit.collider.transform.parent.gameObject.Equals(path)) continue;
+                                else Debug.LogWarning($"{path.name} overlaps {hit.collider.transform.parent.name}'s {hit.collider.name}");
+                                Debug.DrawRay(hit.point, Vector3.up, Color.yellow, 5);
+                                exit = true;
+                                Destroy(path);
+                                break;
+                            }
+                        }
+                        if (exit) continue;
+                        
+                        //Mark as used
                         destroyDoorways.Add(validDoorways[i].doorway.gameObject);
                         destroyDoorways.Add(validDoorways[j].doorway.gameObject);
                     }
@@ -195,7 +246,8 @@ public class DungeonGeneration : MonoBehaviour
         }
 
         //Remove door walls
-        for (int i = 1; i < destroyDoorways.Count; i++) Destroy(destroyDoorways[i]);
+        for (int i = destroyDoorways[0].Equals(dungeonTileParent) ? 1 : 0; i < destroyDoorways.Count; i++) Destroy(destroyDoorways[i]);
+        yield return new WaitForFixedUpdate();
         navMeshSurface.BuildNavMesh();
         dungeonGenerated = true;
         Debug.Log($"Generated a dungeon covering {currentSize}m");
@@ -205,7 +257,7 @@ public class DungeonGeneration : MonoBehaviour
     private bool ApplyTransforms(Transform tile, int from, Transform to, int index)
     {
         //Setup tile
-        tile.transform.position = validDoorways[from].doorway.position + validDoorways[from].doorway.forward * dungeon.tileset[index].tile.spawnSpacing;
+        tile.transform.position = WorldForward(validDoorways[from].doorway, dungeon.tileset[index].tile.spawnSpacing);
         tile.transform.LookAt(validDoorways[from].doorway.position);
 
         //Rotate tile to face new door towards from door with some random variation
@@ -213,11 +265,10 @@ public class DungeonGeneration : MonoBehaviour
         tile.transform.Rotate(Vector3.down * (Vector3.SignedAngle(tile.transform.forward, to.forward, Vector3.up) + variation));
 
         //Move tile back a lil bit
-        Vector3 tdward = to.position + to.forward;
-        tile.transform.position += tile.transform.position - tdward + Random.insideUnitSphere;
+        tile.transform.position += tile.transform.position - WorldForward(to) + Random.insideUnitSphere;
 
         //Check if overlapping
-        Vector3 bounds = transform.localScale;
+        Vector3 bounds = tile.transform.localScale;
         if (tile.transform.TryGetComponent<BoxCollider>(out BoxCollider b)) bounds = b.size;
         Collider[] collide = Physics.OverlapBox(tile.transform.position, bounds, tile.transform.rotation, 256);
         for (int i = 0; i < collide.Length; i++) {
@@ -226,10 +277,16 @@ public class DungeonGeneration : MonoBehaviour
         return true;
     }
 
-    //Creates the paths from the given inputs
-    private void CreatePath(Transform from, Transform to, Transform parent, string name = default)
+    //Get world pos + transform's forward in one call
+    private Vector3 WorldForward(Transform trans, float scale = 1)
     {
-        doorwayCoordinates = new Vector3[nomialSize] { from.position, from.position + from.forward * avgDist / 3, to.position + to.forward * avgDist / 3, to.position };
+        return trans.position + trans.forward * scale;
+    }
+
+    //Creates the paths from the given inputs
+    private GameObject CreatePath(Transform from, Transform to, Transform parent, float weight, string name = default)
+    {
+        doorwayCoordinates = new Vector3[nomialSize] { from.position, WorldForward(from, weight), Vector3.Lerp(from.position, to.position, 0.375f) + from.forward, Vector3.Lerp(from.position, to.position, 0.625f) + to.forward, WorldForward(to, weight), to.position };
         Beizer();
         GameObject path = Instantiate(pathPrefab);
         path.transform.SetParent(parent, true);
@@ -242,6 +299,7 @@ public class DungeonGeneration : MonoBehaviour
             if (path.TryGetComponent<MeshCollider>(out MeshCollider collider)) collider.sharedMesh = m;
             if (path.transform.GetChild(0).TryGetComponent<MeshCollider>(out MeshCollider childBounds)) childBounds.sharedMesh = m;
         }
+        return path;
     }
 
     //Create a curve from door to door

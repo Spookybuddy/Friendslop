@@ -37,6 +37,7 @@ public class PlayerController : MonoBehaviour
     public AnimationCurve gravityCurve;
 
     [Header("Inventory")]
+    public Transform holdPosition;
     public int playerStrength = 10;
     public Transform selectionShellObject;
     public MeshFilter selectionShellMesh;
@@ -59,7 +60,7 @@ public class PlayerController : MonoBehaviour
         //Looking at raycast
         if (Physics.SphereCast(head.position, 0.05f, head.forward, out RaycastHit interact, 2.95f, interactLayers)) {
             if (!interactIcon.gameObject.activeSelf) interactIcon.gameObject.SetActive(true);
-            if (interactWith == null) interactWith = interact.collider.gameObject;
+            if (interactWith == null || interactWith != interact.collider.gameObject) interactWith = interact.collider.gameObject;
             if (interact.collider.gameObject.TryGetComponent<MeshFilter>(out MeshFilter m)) {
                 if (selectionShellMesh.mesh != m.mesh) {
                     selectionShellMesh.mesh = m.mesh;
@@ -72,9 +73,6 @@ public class PlayerController : MonoBehaviour
             if (interactWith != null) interactWith = null;
             if (selectionShellMesh.mesh != null) selectionShellMesh.mesh = null;
         }
-
-        //Debug launching
-        if (Input.GetMouseButtonDown(1)) LaunchPlayer();
 
         //Launch stun
         if (launchStunTime > 0) launchStunTime -= Time.deltaTime;
@@ -209,6 +207,15 @@ public class PlayerController : MonoBehaviour
         airtime = launchVector.y;
     }
 
+    //Hide and activate the model of the held item
+    private bool UpdateItemHeld(byte index)
+    {
+        if (inventory[heldItemIndex] != null) inventory[heldItemIndex].gameObject.SetActive(false);
+        heldItemIndex = index;
+        if (inventory[heldItemIndex] != null) inventory[heldItemIndex].gameObject.SetActive(true);
+        return true;
+    }
+
     #region Controls
     //Set pause to given state
     public void Pause(bool state)
@@ -263,11 +270,57 @@ public class PlayerController : MonoBehaviour
     {
         if (ctx.started) {
             if (interactWith != null) {
-                if (interactWith.TryGetComponent<Item>(out Item script)) {
-                    script.Grab();
+                //Check if player can actually hold an item
+                bool grab = false;
+                if (inventory[heldItemIndex] != null) {
+                    for (byte i = 0; i < inventory.Length; i++) {
+                        if (inventory[(heldItemIndex + i + inventory.Length) % inventory.Length] != null) continue;
+                        grab = UpdateItemHeld((byte)((heldItemIndex + i + inventory.Length) % inventory.Length));
+                        break;
+                    }
+                } else grab = true;
+
+                //Grab item
+                if (grab) {
+                    if (interactWith.TryGetComponent<Item>(out Item script)) {
+                        inventory[heldItemIndex] = script;
+                        script.Grab(holdPosition);
+                    }
                 }
             }
         }
+    }
+
+    //Drop input
+    public void Drop(InputAction.CallbackContext ctx)
+    {
+        if (ctx.started) {
+            if (inventory[heldItemIndex] != null) {
+                inventory[heldItemIndex].Drop();
+                inventory[heldItemIndex] = null;
+                Debug.Log($"Drop item");
+            }
+        }
+    }
+
+    //Scroll inventory
+    public void Scroll(InputAction.CallbackContext ctx)
+    {
+        sbyte scroll = (sbyte)(Mathf.Clamp(ctx.ReadValue<Vector2>().y, -1, 1));
+        UpdateItemHeld((byte)((scroll + inventory.Length + heldItemIndex) % inventory.Length));
+    }
+
+    //Hotkey
+    public bool Hotkey(InputAction.CallbackContext ctx)
+    {
+        Vector3 input = ctx.ReadValue<Vector3>();
+        if (input.y > 0) return UpdateItemHeld(0);
+        if (input.y < 0) return UpdateItemHeld(1);
+        if (input.x > 0) return UpdateItemHeld(2);
+        if (input.x < 0) return UpdateItemHeld(3);
+        if (input.z > 0) return UpdateItemHeld(4);
+        //if (input.z < 0) return UpdateItemHeld(5);
+        return false;
     }
     #endregion
 }

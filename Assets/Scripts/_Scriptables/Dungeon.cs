@@ -4,7 +4,9 @@ using UnityEngine;
 [CreateAssetMenu(fileName = "Dungeon", menuName = "ScriptableObjects/Dungeon", order = 2)]
 public class Dungeon : ScriptableObject
 {
-    [Tooltip("The Tiles that can spawn")]
+    [Tooltip("The Tile spawned first")]
+    public GameObject entranceRoom;
+    [Tooltip("The Tiles that can spawn and their odds for spawning")]
     public TileWithWeight[] tileset;
     [Tooltip("Sum of the tiles' weights. Can be calculated via the Context Menu (three dots top right)")]
     public int weightSummation = 0;
@@ -20,6 +22,8 @@ public class Dungeon : ScriptableObject
     [Header("Connections")]
     [Tooltip("Randomly connect remaining doors after generating")]
     public bool moreConnections = true;
+    [Tooltip("Allow paths to connect to its own tile")]
+    public bool selfConnections = false;
     [Tooltip("Connections with distance < (average spawn spacing * this) will be valid connections")]
     [Range(1f, 10f)]
     public float distanceMultiplier = 2.2f;

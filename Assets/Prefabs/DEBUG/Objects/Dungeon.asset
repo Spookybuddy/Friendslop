@@ -12,6 +12,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ab58d9df4218f5a438c9a4a1d4b68dbb, type: 3}
   m_Name: Dungeon
   m_EditorClassIdentifier: Assembly-CSharp::Dungeon
+  entranceRoom: {fileID: 1385319863841229270, guid: 00376500223630c47ba79bea08c4bbbe,
+    type: 3}
   tileset:
   - tile: {fileID: 11400000, guid: 3842fab2fc593654397d8e783038c390, type: 2}
     spawnWeight: 28
@@ -27,3 +29,7 @@ MonoBehaviour:
   targetSurfaceArea: 3093
   minRotationVariation: 30
   maxRotationVariation: 120
+  moreConnections: 1
+  selfConnections: 0
+  distanceMultiplier: 3
+  dotLimit: -0.7

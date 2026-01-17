@@ -14,19 +14,24 @@ public class Item : MonoBehaviour
     private float airtime;
     private const float GRAV = 9;
     public bool isHeld;
+    private Vector3 worldScale;
+    private Transform itemStorage;
 
     // Start is called before the first frame update
     void Start()
     {
-        if (Physics.SphereCast(transform.position, sphereCastRadius, Vector3.down, out RaycastHit hit, groundOffset)) Gravity(false);
-        else Gravity(true);
+        worldScale = transform.localScale;
+        itemStorage = transform.parent;
+        PhysicsStart();
     }
 
     private void Update()
     {
+        if (isHeld) return;
+
         //Gravity curve
         if (isFalling) {
-            if (Physics.SphereCast(transform.position, sphereCastRadius, Vector3.down, out RaycastHit hit, groundOffset)) {
+            if (Physics.SphereCast(transform.position, sphereCastRadius, Vector3.down, out RaycastHit hit, 0.1f + groundOffset * Time.deltaTime, 129)) {
                 isFalling = false;
                 airtime = 0;
                 transform.position = hit.point + groundOffset * Vector3.up;
@@ -35,6 +40,12 @@ public class Item : MonoBehaviour
                 airtime += Time.deltaTime;
             }
         }
+    }
+
+    private void PhysicsStart()
+    {
+        if (Physics.SphereCast(transform.position, sphereCastRadius, Vector3.down, out RaycastHit hit, groundOffset)) Gravity(false);
+        else Gravity(true);
     }
 
     //Use item's preferred gravity style
@@ -54,11 +65,27 @@ public class Item : MonoBehaviour
     }
 
     //Player grabs item
-    public void Grab()
+    public void Grab(Transform player)
     {
+        //Already being held
         if (isHeld) return;
 
         isHeld = true;
+        transform.SetParent(player, false);
+        transform.localPosition = item.holdOffset;
+        transform.localEulerAngles = item.holdRotation;
+        transform.localScale = item.holdScale;
+        if (rig != null) rig.isKinematic = true;
         Debug.Log($"Grabbed {gameObject.name}");
+    }
+
+    //Player drops item
+    public void Drop()
+    {
+        isHeld = false;
+        transform.SetParent(itemStorage, true);
+        transform.localScale = worldScale;
+        if (rig != null) rig.isKinematic = false;
+        PhysicsStart();
     }
 }
