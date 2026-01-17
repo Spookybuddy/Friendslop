@@ -120,8 +120,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   item: {fileID: 11400000, guid: 5e6cafe034fd57645b0443e84bf79a73, type: 2}
   rig: {fileID: 0}
-  sphereCastRadius: 0.2
+  sphereCastRadius: 0.1
   groundOffset: 0.05
-  isFalling: 0
   isHeld: 0
-  asleep: 0

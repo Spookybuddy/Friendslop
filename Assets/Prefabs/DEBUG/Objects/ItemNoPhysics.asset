@@ -13,10 +13,16 @@ MonoBehaviour:
   m_Name: ItemNoPhysics
   m_EditorClassIdentifier: 
   prefab: {fileID: 4199838234043787772, guid: 4dd5e8410b599f44083dbd8736cfcdc3, type: 3}
+  holdOffset: {x: 0, y: 0, z: 0}
+  holdRotation: {x: 0, y: 0, z: 0}
+  holdScale: {x: 1, y: 1, z: 1}
   weight: 0
-  grabSFX: {fileID: 0}
-  dropSFX: {fileID: 0}
-  useSFX: {fileID: 0}
+  grabSFX:
+  - {fileID: 0}
+  dropSFX:
+  - {fileID: 0}
+  useSFX:
+  - {fileID: 0}
   gravityCurve:
     serializedVersion: 2
     m_Curve:

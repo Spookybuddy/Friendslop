@@ -148,6 +148,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   item: {fileID: 11400000, guid: e0ebd4aa145daff41b154fa645bac5df, type: 2}
   rig: {fileID: -5771079759985583608}
-  isFalling: 0
+  sphereCastRadius: 0.2
+  groundOffset: 0.2
   isHeld: 0
-  asleep: 0

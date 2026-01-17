@@ -8,15 +8,18 @@ public class ItemSpawner : MonoBehaviour
     public int spawnWeightTotal = 0;
     public byte baseItemSpawnCount = 5;
     public sbyte amountVariation = 1;
+    private Transform itemStorageParent;
 
     private void Start()
     {
+        itemStorageParent = GameObject.FindGameObjectWithTag("Finish").transform;
         for (int i = 0; i < spawnableItems.Length; i++) spawnWeightTotal += spawnableItems[i].spawnWeight;
-        Spawn();
+        Distribute();
     }
 
-    private void Spawn()
+    public void Distribute(int seed = 0)
     {
+        Random.InitState(seed);
         int spawn = baseItemSpawnCount + Random.Range(-amountVariation, amountVariation + 1);
         for (int a = 0; a < spawn; a++) {
             int desiredWeight = Random.Range(0, spawnWeightTotal);
@@ -25,17 +28,19 @@ public class ItemSpawner : MonoBehaviour
                 for (int i = 0; i < spawnableItems.Length; i++) {
                     weightSum += spawnableItems[i].spawnWeight;
                     if (weightSum >= desiredWeight) {
-                        Vector3 pos = Random.insideUnitCircle * 10;
-                        (pos.z, pos.y) = (pos.y, pos.z);
-                        Instantiate(spawnableItems[i].item.prefab, pos + Vector3.up, Quaternion.identity);
+                        Spawn(i);
                         break;
                     }
                 }
-            } else {
-                Vector3 pos = Random.insideUnitCircle * 10;
-                (pos.z, pos.y) = (pos.y, pos.z);
-                Instantiate(spawnableItems[0].item.prefab, pos + Vector3.up, Quaternion.identity);
-            }
+            } else Spawn(0);
         }
+    }
+
+    private void Spawn(int id)
+    {
+        Vector3 pos = Random.insideUnitCircle * 10;
+        (pos.z, pos.y) = (pos.y, pos.z);
+        GameObject item = Instantiate(spawnableItems[id].item.prefab, pos + Vector3.up, Quaternion.identity, itemStorageParent);
+        item.name = spawnableItems[id].item.name;
     }
 }

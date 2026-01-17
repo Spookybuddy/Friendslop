@@ -14,4 +14,4 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   prefab: {fileID: 7428840835895650112, guid: 64368a446d090f641abaeb5895844e1e, type: 3}
   meterage: 123
-  spawnSpacing: 11
+  spawnSpacing: 20
