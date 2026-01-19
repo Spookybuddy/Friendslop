@@ -29,6 +29,10 @@ MonoBehaviour:
   targetSurfaceArea: 3093
   minRotationVariation: 30
   maxRotationVariation: 120
+  pathPrefab: {fileID: 2947222615814322716, guid: 77a1d959d96f98c4198a1f49c961bb84,
+    type: 3}
+  quality: 18
+  pathWidth: 2
   moreConnections: 1
   selfConnections: 0
   distanceMultiplier: 3

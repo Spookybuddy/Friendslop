@@ -35,22 +35,18 @@ public class DungeonGeneration : MonoBehaviour
     public bool dungeonGenerated = false;
     public bool Debugging = false;
     System.Random rng;
-
-    [Header("Beizer Paths")]
-    [Tooltip("The number of subdivisions along paths")]
-    public int quality = nomialSize;
-    [Tooltip("How many meters wide the paths are")]
-    public float pathWidth = 2;
-    [Tooltip("The path with mesh renderer & collider")]
-    public GameObject pathPrefab;
+    private int quality;
     private const byte nomialSize = 6;
     private readonly byte[] binomial = new byte[nomialSize] { 1, 5, 10, 10, 5, 1 };
     private Vector3[] pathwayCoordinates;
     private Vector3[] doorwayCoordinates = new Vector3[nomialSize];
 
+    [Header("Map")]
+    public Camera mapCam;
+
     public void Start()
     {
-        quality = Mathf.Max(quality, nomialSize);
+        quality = Mathf.Max(dungeon.quality, nomialSize);
         dungeonTileParent = Instantiate(tileParent, transform).transform;
         Routine();
     }
@@ -85,7 +81,12 @@ public class DungeonGeneration : MonoBehaviour
         if (dungeon.entranceRoom != null) {
             GameObject entrance = Instantiate(dungeon.entranceRoom, dungeonTileParent);
             for (int i = 0; i < entrance.transform.childCount; i++) {
-                if (entrance.transform.GetChild(i).CompareTag("Doorway")) validDoorways.Add(new TileCheck(entrance.transform.GetChild(i), dungeon.tileset.Length));
+                Transform t = entrance.transform.GetChild(i);
+                if (t.CompareTag("Doorway")) validDoorways.Add(new TileCheck(entrance.transform.GetChild(i), dungeon.tileset.Length));
+                if (t.CompareTag("MapIcon")) {
+                    t.localPosition = new Vector3(t.localPosition.x, 0, t.localPosition.z);
+                    t.position += Vector3.up * (dungeon.mapHeight - entrance.transform.position.y);
+                }
             }
             if (validDoorways.Count <= 0) {
                 if (Debugging) Debug.LogError($"No doorways found in Entrance {entrance.name}");
@@ -183,6 +184,15 @@ public class DungeonGeneration : MonoBehaviour
             //Pathways after checking overlap so it doesnt kill itself
             CreatePath(validDoorways[fromDoor].doorway, newDoors[toDoor].doorway, newTile.transform, avgDist / 3);
 
+            //Map edits for icon heights
+            for (int i = 0; i < newTile.transform.childCount; i++) {
+                Transform t = newTile.transform.GetChild(i);
+                if (t.CompareTag("MapIcon")) {
+                    t.localPosition = new Vector3(t.localPosition.x, 0, t.localPosition.z);
+                    t.position += Vector3.up * (dungeon.mapHeight - newTile.transform.position.y);
+                }
+            }
+
             //Remove from lists
             destroyDoorways.Add(validDoorways[fromDoor].doorway.gameObject);
             destroyDoorways.Add(newDoors[toDoor].doorway.gameObject);
@@ -226,7 +236,7 @@ public class DungeonGeneration : MonoBehaviour
                         bool exit = false;
                         for (int k = 1; k < quality; k++) {
                             Debug.DrawRay(pathwayCoordinates[k], Vector3.up, Color.white, 5);
-                            if (Physics.SphereCast(pathwayCoordinates[k] + Vector3.up, pathWidth / 2, Vector3.down, out RaycastHit hit, pathWidth, 256)) {
+                            if (Physics.SphereCast(pathwayCoordinates[k] + Vector3.up, dungeon.pathWidth / 2, Vector3.down, out RaycastHit hit, dungeon.pathWidth, 256)) {
                                 if (hit.collider.transform.parent.gameObject.Equals(path)) continue;
                                 else Debug.LogWarning($"{path.name} overlaps {hit.collider.transform.parent.name}'s {hit.collider.name}");
                                 Debug.DrawRay(hit.point, Vector3.up, Color.yellow, 5);
@@ -251,6 +261,18 @@ public class DungeonGeneration : MonoBehaviour
         navMeshSurface.BuildNavMesh();
         dungeonGenerated = true;
         Debug.Log($"Generated a dungeon covering {currentSize}m");
+
+        //Map
+        yield return new WaitForFixedUpdate();
+        float mapSize = Mathf.Max(navMeshSurface.navMeshData.sourceBounds.extents.x, navMeshSurface.navMeshData.sourceBounds.extents.z);
+        Vector3 center = navMeshSurface.navMeshData.sourceBounds.center;
+        mapCam.transform.localPosition = new Vector3(center.x, dungeon.mapHeight + 1, center.z);
+        mapCam.orthographicSize = mapSize;
+        mapCam.enabled = true;
+        yield return new WaitForEndOfFrame();
+        mapCam.Render();
+        yield return new WaitForEndOfFrame();
+        mapCam.enabled = false;
     }
 
     //Checks valid spawn a few times
@@ -288,7 +310,7 @@ public class DungeonGeneration : MonoBehaviour
     {
         doorwayCoordinates = new Vector3[nomialSize] { from.position, WorldForward(from, weight), Vector3.Lerp(from.position, to.position, 0.375f) + from.forward, Vector3.Lerp(from.position, to.position, 0.625f) + to.forward, WorldForward(to, weight), to.position };
         Beizer();
-        GameObject path = Instantiate(pathPrefab);
+        GameObject path = Instantiate(dungeon.pathPrefab);
         path.transform.SetParent(parent, true);
         if (name == default) path.name = $"#{tileID}'s Path";
         else path.name = name;
@@ -298,6 +320,13 @@ public class DungeonGeneration : MonoBehaviour
             filter.sharedMesh = m;
             if (path.TryGetComponent<MeshCollider>(out MeshCollider collider)) collider.sharedMesh = m;
             if (path.transform.GetChild(0).TryGetComponent<MeshCollider>(out MeshCollider childBounds)) childBounds.sharedMesh = m;
+            //Map icon
+            Transform t = path.transform.GetChild(1);
+            if (t.CompareTag("MapIcon")) {
+                t.localPosition = new Vector3(t.localPosition.x, 0, t.localPosition.z);
+                t.position += Vector3.up * dungeon.mapHeight;
+                if (t.TryGetComponent<MeshFilter>(out MeshFilter mapFilter)) mapFilter.sharedMesh = m;
+            }
         }
         return path;
     }
@@ -338,7 +367,7 @@ public class DungeonGeneration : MonoBehaviour
         //Record points
         for (int i = 0; i <= quality; i++) {
             Debug.DrawRay(pathwayCoordinates[i], pathwayDirection[i], Color.blue, 2);
-            pathwayDirection[i] = Vector3.Cross(pathwayDirection[i], Vector3.up) * (pathWidth / 2);
+            pathwayDirection[i] = Vector3.Cross(pathwayDirection[i], Vector3.up) * (dungeon.pathWidth / 2);
             vertices[i * 2] = pathwayCoordinates[i] + pathwayDirection[i];
             vertices[i * 2 + 1] = pathwayCoordinates[i] - pathwayDirection[i];
             Debug.DrawRay(vertices[i * 2], -pathwayDirection[i], Color.red, 2);

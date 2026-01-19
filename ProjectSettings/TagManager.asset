@@ -6,6 +6,8 @@ TagManager:
   tags:
   - Doorway
   - Item Spawner
+  - Bounds
+  - MapIcon
   layers:
   - Default
   - TransparentFX
