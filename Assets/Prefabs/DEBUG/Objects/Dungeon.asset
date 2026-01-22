@@ -27,6 +27,7 @@ MonoBehaviour:
     spawnWeight: 16
   weightSummation: 129
   targetSurfaceArea: 3093
+  minimumSurfaceArea: 2700
   minRotationVariation: 30
   maxRotationVariation: 120
   pathPrefab: {fileID: 2947222615814322716, guid: 77a1d959d96f98c4198a1f49c961bb84,
@@ -37,3 +38,4 @@ MonoBehaviour:
   selfConnections: 0
   distanceMultiplier: 3
   dotLimit: -0.7
+  mapHeight: 50

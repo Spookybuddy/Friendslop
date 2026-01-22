@@ -9,11 +9,17 @@ public class Dungeon : ScriptableObject
     public GameObject entranceRoom;
     [Tooltip("The Tiles that can spawn and their odds for spawning")]
     public TileWithWeight[] tileset;
+    [Tooltip("How many times to try placing the tile before giving up")]
+    [Range(5, 255)]
+    public byte tilePlacementAttempts = 5;
     [Tooltip("Sum of the tiles' weights. Can be calculated via the Context Menu (three dots top right)")]
     public int weightSummation = 0;
     [Tooltip("The target total meterage of spawned Tiles")]
-    [Range(0, 100000)]
+    [Range(0, 10000)]
     public int targetSurfaceArea;
+    [Tooltip("No dungeon meterage can be smaller than this")]
+    [Range(0, 10000)]
+    public int minimumSurfaceArea;
     [Tooltip("Min variation added to tile rotation")]
     [Range(-128, 127)]
     public sbyte minRotationVariation = 15;
@@ -48,5 +54,6 @@ public class Dungeon : ScriptableObject
     public void SumWeights()
     {
         for (int i = 0; i < tileset.Length; i++) weightSummation += tileset[i].spawnWeight;
+        if (minimumSurfaceArea > targetSurfaceArea) (targetSurfaceArea, minimumSurfaceArea) = (minimumSurfaceArea, targetSurfaceArea);
     }
 }

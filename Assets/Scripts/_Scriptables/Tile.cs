@@ -10,6 +10,8 @@ public class Tile : ScriptableObject
     public byte meterage;
     [Tooltip("The distance of center from previous tile")]
     public float spawnSpacing = 5;
+    [Tooltip("Number of doors in Tile")]
+    public byte doorCount;
 }
 
 [System.Serializable]

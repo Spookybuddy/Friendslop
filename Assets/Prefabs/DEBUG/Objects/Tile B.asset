@@ -15,3 +15,4 @@ MonoBehaviour:
   prefab: {fileID: 8760764905224217946, guid: 2b76260ecc8726146abe5a8c2d62036c, type: 3}
   meterage: 81
   spawnSpacing: 20
+  doorCount: 2

@@ -25,16 +25,17 @@ public class DungeonGeneration : MonoBehaviour
     [Tooltip("The navigation surface to access and bake")]
     public NavMeshSurface navMeshSurface;
     private Transform dungeonTileParent;
-    private uint currentSize;
+    public uint currentSize;
     private float avgDist = 10;
     private int tileID = 0;
+    private byte bestTileID = 0;
     private readonly List<GameObject> destroyDoorways = new List<GameObject>();
     private readonly List<TileCheck> validDoorways = new List<TileCheck>();
     public float generationTime = 0;
     private Coroutine executing;
     public bool dungeonGenerated = false;
     public bool Debugging = false;
-    System.Random rng;
+    public System.Random rng;
     private int quality;
     private const byte nomialSize = 6;
     private readonly byte[] binomial = new byte[nomialSize] { 1, 5, 10, 10, 5, 1 };
@@ -61,7 +62,11 @@ public class DungeonGeneration : MonoBehaviour
         tileID = 0;
         currentSize = 0;
         generationTime = 0;
-        for (int i = 0; i < dungeon.tileset.Length; i++) avgDist += dungeon.tileset[i].tile.spawnSpacing;
+        byte doors = 0;
+        for (byte i = 0; i < dungeon.tileset.Length; i++) {
+            avgDist += dungeon.tileset[i].tile.spawnSpacing;
+            if (dungeon.tileset[i].tile.doorCount > doors) bestTileID = i;
+        }
         avgDist /= dungeon.tileset.Length;
         dungeonGenerated = false;
         validDoorways.Clear();
@@ -80,7 +85,7 @@ public class DungeonGeneration : MonoBehaviour
         dungeonTileParent.name = "DungeonParent";
         if (dungeon.entranceRoom != null) {
             GameObject entrance = Instantiate(dungeon.entranceRoom, dungeonTileParent);
-            for (int i = 0; i < entrance.transform.childCount; i++) {
+            for (byte i = 0; i < entrance.transform.childCount; i++) {
                 Transform t = entrance.transform.GetChild(i);
                 if (t.CompareTag("Doorway")) validDoorways.Add(new TileCheck(entrance.transform.GetChild(i), dungeon.tileset.Length));
                 if (t.CompareTag("MapIcon")) {
@@ -112,6 +117,14 @@ public class DungeonGeneration : MonoBehaviour
             //No more open doorways
             if (validDoorways.Count < 1) {
                 if (Debugging) Debug.LogWarning($"Ran out of doors after {currentSize}m");
+
+                //If the current size is too small, replace the latest tile with the least doors and try again
+                if (dungeon.minimumSurfaceArea > currentSize) {
+                    Debug.LogWarning($"Bad seed, trying next seed");
+                    seed++;
+                    Routine();
+                    yield break;
+                } else Debug.Log($"Dungeon was large enough");
                 break;
             }
 
@@ -122,7 +135,7 @@ public class DungeonGeneration : MonoBehaviour
             uint desiredWeight = (uint)rng.Next(0, dungeon.weightSummation);
             uint weightSum = 0;
             if (dungeon.tileset.Length > 1) {
-                for (int i = 0; i < dungeon.tileset.Length; i++) {
+                for (byte i = 0; i < dungeon.tileset.Length; i++) {
                     weightSum += dungeon.tileset[i].spawnWeight;
                     if (weightSum >= desiredWeight) {
                         tileIndex = i;
@@ -132,7 +145,7 @@ public class DungeonGeneration : MonoBehaviour
             }
 
             //All tiles checked
-            for (int i = 0; i < dungeon.tileset.Length; i++) {
+            for (byte i = 0; i < dungeon.tileset.Length; i++) {
                 if (!validDoorways[fromDoor].tilesChecked[i]) skip = false;
             }
             if (skip) {
@@ -143,7 +156,7 @@ public class DungeonGeneration : MonoBehaviour
 
             //Tile picked has already been checked
             if (validDoorways[fromDoor].tilesChecked[tileIndex]) {
-                for (int i = 1; i < dungeon.tileset.Length; i++) {
+                for (byte i = 1; i < dungeon.tileset.Length; i++) {
                     if (!validDoorways[fromDoor].tilesChecked[(tileIndex + i) % dungeon.tileset.Length]) {
                         if (Debugging) Debug.Log($"{validDoorways[fromDoor].doorway.parent.name}'s {validDoorways[fromDoor].doorway.name} cannot fit {dungeon.tileset[tileIndex].tile.prefab.name}, changed to {dungeon.tileset[(tileIndex + i) % 5].tile.prefab.name}");
                         tileIndex = i;
@@ -156,7 +169,7 @@ public class DungeonGeneration : MonoBehaviour
 
             //Find new doorway to connect
             List<TileCheck> newDoors = new List<TileCheck>();
-            for (int i = 0; i < newTile.transform.childCount; i++) {
+            for (byte i = 0; i < newTile.transform.childCount; i++) {
                 if (newTile.transform.GetChild(i).CompareTag("Doorway")) newDoors.Add(new TileCheck(newTile.transform.GetChild(i), dungeon.tileset.Length));
             }
             if (newDoors.Count <= 0) {
@@ -166,9 +179,10 @@ public class DungeonGeneration : MonoBehaviour
             }
             int toDoor = rng.Next(0, newDoors.Count);
 
-            //Attempt fitting the tile in 5 times before giving up
+            //Attempt fitting the tile in multiple times before giving up
             newTile.name = $"#{tileID}";
-            for (int i = 0; i < 5; i++) {
+            for (byte i = 0; i < dungeon.tilePlacementAttempts; i++) {
+                skip = false;
                 if (ApplyTransforms(newTile.transform, fromDoor, newDoors[toDoor].doorway, tileIndex)) break;
                 else skip = true;
             }
@@ -179,13 +193,13 @@ public class DungeonGeneration : MonoBehaviour
                 validDoorways[fromDoor].tilesChecked[tileIndex] = true;
                 continue;
             }
-            newTile.transform.SetParent(dungeonTileParent, true);
+            newTile.transform.SetParent(validDoorways[fromDoor].doorway.parent, true);
 
             //Pathways after checking overlap so it doesnt kill itself
             CreatePath(validDoorways[fromDoor].doorway, newDoors[toDoor].doorway, newTile.transform, avgDist / 3);
 
             //Map edits for icon heights
-            for (int i = 0; i < newTile.transform.childCount; i++) {
+            for (byte i = 0; i < newTile.transform.childCount; i++) {
                 Transform t = newTile.transform.GetChild(i);
                 if (t.CompareTag("MapIcon")) {
                     t.localPosition = new Vector3(t.localPosition.x, 0, t.localPosition.z);
@@ -209,9 +223,6 @@ public class DungeonGeneration : MonoBehaviour
             for (int i = 0; i < validDoorways.Count; i++) {
                 if (destroyDoorways.Contains(validDoorways[i].doorway.gameObject)) continue;
                 for (int j = i + 1; j < validDoorways.Count; j++) {
-                    //yield return new WaitForFixedUpdate();
-                    //generationTime += Time.deltaTime;
-
                     //Already connected check
                     if (destroyDoorways.Contains(validDoorways[j].doorway.gameObject) || destroyDoorways.Contains(validDoorways[i].doorway.gameObject)) continue;
 
@@ -235,16 +246,22 @@ public class DungeonGeneration : MonoBehaviour
                         //Overlap check - Work on just doing math instead of waiting for physics update
                         bool exit = false;
                         for (int k = 1; k < quality; k++) {
-                            Debug.DrawRay(pathwayCoordinates[k], Vector3.up, Color.white, 5);
-                            if (Physics.SphereCast(pathwayCoordinates[k] + Vector3.up, dungeon.pathWidth / 2, Vector3.down, out RaycastHit hit, dungeon.pathWidth, 256)) {
-                                if (hit.collider.transform.parent.gameObject.Equals(path)) continue;
-                                else Debug.LogWarning($"{path.name} overlaps {hit.collider.transform.parent.name}'s {hit.collider.name}");
-                                Debug.DrawRay(hit.point, Vector3.up, Color.yellow, 5);
-                                exit = true;
-                                Destroy(path);
-                                break;
+                            //Raycast along path and delete if it overlaps
+                            yield return new WaitForFixedUpdate();
+                            RaycastHit[] hits = Physics.SphereCastAll(pathwayCoordinates[k] + Vector3.up, dungeon.pathWidth / 2, Vector3.down, dungeon.pathWidth, 256);
+                            for (byte l = 0; l < hits.Length; l++) {
+                                if (hits[l].collider.transform.parent.gameObject.Equals(path)) continue;
+                                else if (hits[l].collider.transform.Equals(validDoorways[i].doorway.parent)) continue;
+                                else if (hits[l].collider.transform.Equals(validDoorways[j].doorway.parent)) continue;
+                                else {
+                                    Debug.LogWarning($"{path.name} overlaps {hits[l].collider.transform.parent.name}'s {hits[l].collider.name}");
+                                    Destroy(path);
+                                    exit = true;
+                                    goto SKIP;
+                                }
                             }
                         }
+                        SKIP:
                         if (exit) continue;
                         
                         //Mark as used
@@ -264,10 +281,9 @@ public class DungeonGeneration : MonoBehaviour
 
         //Map
         yield return new WaitForFixedUpdate();
-        float mapSize = Mathf.Max(navMeshSurface.navMeshData.sourceBounds.extents.x, navMeshSurface.navMeshData.sourceBounds.extents.z);
         Vector3 center = navMeshSurface.navMeshData.sourceBounds.center;
         mapCam.transform.localPosition = new Vector3(center.x, dungeon.mapHeight + 1, center.z);
-        mapCam.orthographicSize = mapSize;
+        mapCam.orthographicSize = Mathf.Max(navMeshSurface.navMeshData.sourceBounds.extents.x, navMeshSurface.navMeshData.sourceBounds.extents.z);
         mapCam.enabled = true;
         yield return new WaitForEndOfFrame();
         mapCam.Render();
@@ -286,7 +302,7 @@ public class DungeonGeneration : MonoBehaviour
         float variation = Mathf.Sign(rng.Next() % 2 - 1) * rng.Next(dungeon.minRotationVariation, dungeon.maxRotationVariation);
         tile.transform.Rotate(Vector3.down * (Vector3.SignedAngle(tile.transform.forward, to.forward, Vector3.up) + variation));
 
-        //Move tile back a lil bit
+        //Move tile back a lil bit with noise
         tile.transform.position += tile.transform.position - WorldForward(to) + Random.insideUnitSphere;
 
         //Check if overlapping
