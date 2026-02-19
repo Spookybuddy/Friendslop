@@ -25,11 +25,25 @@ MonoBehaviour:
     spawnWeight: 10
   - tile: {fileID: 11400000, guid: 0c6efbaa436f07c43840332bd2f1592f, type: 2}
     spawnWeight: 16
-  weightSummation: 129
+  tilePlacementAttempts: 5
+  tileWeightSum: 5643
   targetSurfaceArea: 3093
+  minimumSurfaceArea: 2700
   minRotationVariation: 30
   maxRotationVariation: 120
+  pathPrefab: {fileID: 2947222615814322716, guid: bf7877b150348ec41ad0519c37a7be3c,
+    type: 3}
+  quality: 18
+  pathWidth: 2
   moreConnections: 1
   selfConnections: 0
   distanceMultiplier: 3
   dotLimit: -0.7
+  chunkPrefab: {fileID: 4943488530812381464, guid: 6bf29aef116d38040be7d101f3416a8e,
+    type: 3}
+  mapHeight: 50
+  atmospheres:
+  - weather: 0
+    fog: {fileID: 11400000, guid: e558bfae6b322fc468864162710edf04, type: 2}
+    weight: 5
+  atmosWeightSum: 286

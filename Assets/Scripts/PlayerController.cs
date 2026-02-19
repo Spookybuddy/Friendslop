@@ -6,6 +6,7 @@ public class PlayerController : MonoBehaviour
     [Header("Camera")]
     public Transform head;
     private const float HeadHeight = 0.625f;
+    public ParticleSystem[] weathersList;
 
     [Header("Controls")]
     public bool paused;
@@ -32,6 +33,7 @@ public class PlayerController : MonoBehaviour
     private Vector3 slopeDir;
     private Vector3 surfaceNormals = default;
     private RaycastHit wallCollision;
+    public string lastSurface = "Default";
     public LayerMask groundLayers;
     private const float GravitationalForce = 9.9f;
     public AnimationCurve gravityCurve;
@@ -111,6 +113,9 @@ public class PlayerController : MonoBehaviour
                     if (launchStunTime <= 0) wasLaunched = false;
                     airtime = 0;
                     jumpInputBuffer = Mathf.Clamp(jumpInputBuffer + Time.deltaTime, 0, maxJumpBuffer);
+
+                    //Get tag
+                    lastSurface = floor.collider.tag;
                 } else {
                     //Normals of the surface are too steep: Start sliding & cant jump off it
                     if (jumpInputBuffer > 0) jumpInputBuffer -= Time.deltaTime * (isSprinting ? sprintSpeed : 1);
@@ -138,6 +143,14 @@ public class PlayerController : MonoBehaviour
         if (moving || wasLaunched) {
             float moveMulti = moveSpeed * Time.deltaTime;
             moveMulti *= (isSprinting ? sprintSpeed : isSneaking ? sneakSpeed : 1);
+
+            //Snow
+            if (Physics.Raycast(transform.position, Vector3.down, out RaycastHit snow, 1.1f, 512)) {
+                if (snow.collider.gameObject.TryGetComponent<SnowySurface>(out SnowySurface script)) {
+                    if (script.snowMaxDepth > snow.distance) moveMulti *= Mathf.Clamp(1 - script.Carve(snow.triangleIndex * 3, snow.barycentricCoordinate), 0.6f, 1);
+                }
+            }
+
             movementDir = transform.forward * (movementInput.y * moveMulti) + transform.right * (movementInput.x * moveMulti);
             if (wasLaunched) movementDir = launchVector;
             transform.position += CollisionCheck(movementDir, wasLaunched);
@@ -157,7 +170,7 @@ public class PlayerController : MonoBehaviour
     private float Friction(string tag = default)
     {
         return tag switch {
-            "" => 1,
+            "Snowy" => 2,
             _ => 1.5f,
         };
     }
@@ -168,7 +181,8 @@ public class PlayerController : MonoBehaviour
         if (Physics.SphereCast(transform.position + Vector3.down * 0.3f, playerColliderRadius, inVector, out wallCollision, Mathf.Max(inVector.magnitude - playerColliderRadius, 0.1f), groundLayers)) Debug.DrawLine(wallCollision.point, transform.position, Color.blue);
         else if (Physics.SphereCast(transform.position + Vector3.up * 0.3f, playerColliderRadius, inVector, out wallCollision, Mathf.Max(inVector.magnitude - playerColliderRadius, 0.1f), groundLayers)) Debug.DrawLine(wallCollision.point, transform.position, Color.red);
         else if (checkA) return inVector;
-        else return Vector3.ProjectOnPlane(inVector, surfaceNormals) + Friction() * Mathf.Pow(1.5f - surfaceNormals.y, 2) * slopeDir;
+        //else return Vector3.ProjectOnPlane(inVector, surfaceNormals) + Friction() * Mathf.Pow(1.5f - surfaceNormals.y, 2) * slopeDir;
+        else return Vector3.ProjectOnPlane(inVector, surfaceNormals) + Mathf.Pow(1.5f - surfaceNormals.y, 2) * slopeDir;
 
         PropCollisionCheck(wallCollision, inVector);
 
@@ -216,12 +230,19 @@ public class PlayerController : MonoBehaviour
         return true;
     }
 
+    //Get/Set weather to/from manager
+    public void Weather(Weathers weather)
+    {
+        for (byte b = 1; b <= weathersList.Length; b++) weathersList[b - 1].gameObject.SetActive(b == (int)weather);
+    }
+
     #region Controls
     //Set pause to given state
     public void Pause(bool state)
     {
-        paused = state;
-        Cursor.lockState = (CursorLockMode)(state ? 0 : 1);
+        paused = !paused;
+        //paused = state;
+        Cursor.lockState = (CursorLockMode)(paused ? 0 : 1);
     }
 
     //Look rotate body and head
