@@ -15,8 +15,52 @@ public struct TileCheck
     }
 }
 
+[System.Serializable]
+public struct MeshChunk
+{
+    public Vector3[] vertices;
+    public Vector2[] uvs;
+    public int[] triangles;
+    public Color[] colors;
+    public Mesh chunk;
+    public MeshChunk(int scale, int tris)
+    {
+        vertices = new Vector3[scale];
+        uvs = new Vector2[scale];
+        colors = new Color[scale];
+        triangles = new int[tris];
+        chunk = new Mesh();
+    }
+    public void Verts(int i, int x, int z, Vector3 pos)
+    {
+        vertices[i] = pos;
+        uvs[i] = new Vector2(x, z);
+        colors[i] = Color.white;
+    }
+    public void Create() {
+        chunk.vertices = vertices;
+        chunk.SetUVs(0, uvs);
+        chunk.SetColors(colors);
+        chunk.triangles = triangles;
+        chunk.RecalculateNormals();
+        chunk.Optimize();
+    }
+}
+
+public struct Point
+{
+    public int x;
+    public int z;
+    public Point(int x, int z)
+    {
+        this.x = x;
+        this.z = z;
+    }
+}
+
 public class DungeonGeneration : MonoBehaviour
 {
+    [Header("Settings")]
     public int seed = 0;
     [Tooltip("The dungeon settings to use")]
     public Dungeon dungeon;
@@ -24,14 +68,34 @@ public class DungeonGeneration : MonoBehaviour
     public GameObject tileParent;
     [Tooltip("The navigation surface to access and bake")]
     public NavMeshSurface navMeshSurface;
+    [Tooltip("Parent object for out of bounds chunks")]
+    public Transform terrain;
+    [HideInInspector]
+    public GameObject[] chunks;
+    private MeshChunk[] chunkData;
+    private int[] setChunkTris;
+    private readonly List<Point> points = new List<Point>();
+    private Vector2[] yValues;
+    private readonly short[] Primes = new short[] {
+          2,   3,   5,   7,  11,  13,  17,  19,  23,  29,  31,  37,  41,  43,  47,  53,  59,  61,  67,  71,  73,  79,  83,  89,  97, 101, 103, 107, 109, 113, 127, 131, 137, 139, 149,
+        151, 157, 163, 167, 173, 179, 181, 191, 193, 197, 199, 211, 223, 227, 229, 233, 239, 241, 251, 257, 263, 269, 271, 277, 281, 283, 293, 307, 311, 313, 317, 331, 337, 347, 349,
+        353, 359, 367, 373, 379, 383, 389, 397, 401, 409, 419, 421, 431, 433, 439, 443, 449, 457, 461, 463, 467, 479, 487, 491, 499, 503, 509, 521, 523, 541, 547, 557, 563, 569, 571,
+        577, 587, 593, 599, 601, 607, 613, 617, 619, 631, 641, 643, 647, 653, 659, 661, 673, 677, 683, 691, 701, 709, 719, 727, 733, 739, 743, 751, 757, 761, 769, 773, 787, 797, 809,
+        811, 821, 823, 827, 829, 839, 853, 857, 859, 863, 877, 881, 883, 887, 907, 911, 919, 929, 937, 941, 947, 953, 967, 971, 977, 983, 991, 997
+    };
+    [Header("Stats")]
     private Transform dungeonTileParent;
     public uint currentSize;
     private float avgDist = 10;
     private int tileID = 0;
+    [HideInInspector]
+    public int atmoID = 0;
     private byte bestTileID = 0;
     private readonly List<GameObject> destroyDoorways = new List<GameObject>();
     private readonly List<TileCheck> validDoorways = new List<TileCheck>();
     public float generationTime = 0;
+    public float connectionTime = 0;
+    public float totalTime = 0;
     private Coroutine executing;
     public bool dungeonGenerated = false;
     public bool Debugging = false;
@@ -41,15 +105,13 @@ public class DungeonGeneration : MonoBehaviour
     private readonly byte[] binomial = new byte[nomialSize] { 1, 5, 10, 10, 5, 1 };
     private Vector3[] pathwayCoordinates;
     private Vector3[] doorwayCoordinates = new Vector3[nomialSize];
-
+    private readonly RaycastHit[] castResults = new RaycastHit[nomialSize];
     [Header("Map")]
     public Camera mapCam;
 
     public void Start()
     {
         quality = Mathf.Max(dungeon.quality, nomialSize);
-        dungeonTileParent = Instantiate(tileParent, transform).transform;
-        Routine();
     }
 
     //Reset vars and generate
@@ -62,11 +124,29 @@ public class DungeonGeneration : MonoBehaviour
         tileID = 0;
         currentSize = 0;
         generationTime = 0;
+        connectionTime = 0;
+        totalTime = 0;
         byte doors = 0;
         for (byte i = 0; i < dungeon.tileset.Length; i++) {
             avgDist += dungeon.tileset[i].tile.spawnSpacing;
             if (dungeon.tileset[i].tile.doorCount > doors) bestTileID = i;
         }
+
+        for (byte i = 0; i < chunks.Length; i++) Destroy(chunks[i]);
+
+        dungeon.SumWeights();
+        uint desiredWeight = (uint)rng.Next(0, dungeon.atmosWeightSum);
+        uint weightSum = 0;
+        if (dungeon.atmospheres.Length > 1) {
+            for (byte i = 0; i < dungeon.atmospheres.Length; i++) {
+                weightSum += dungeon.atmospheres[i].weight;
+                if (weightSum >= desiredWeight) {
+                    atmoID = i;
+                    break;
+                }
+            }
+        }
+
         avgDist /= dungeon.tileset.Length;
         dungeonGenerated = false;
         validDoorways.Clear();
@@ -107,12 +187,14 @@ public class DungeonGeneration : MonoBehaviour
             validDoorways.Add(new TileCheck(dungeonTileParent, dungeon.tileset.Length));
         }
 
+        #region Dungeon Generation
         //Tile spawn loop
         while (currentSize < dungeon.targetSurfaceArea) {
             //yield return new WaitForEndOfFrame(); //This was yielding different results everytime, whereas fixed time gives deterministic results
             yield return new WaitForFixedUpdate();
             bool skip = true;
             generationTime += Time.deltaTime;
+            totalTime += Time.deltaTime;
 
             //No more open doorways
             if (validDoorways.Count < 1) {
@@ -131,8 +213,7 @@ public class DungeonGeneration : MonoBehaviour
             //Pick and spawn a tile from the dungeon's list using weighted spawn
             int tileIndex = 0;
             int fromDoor = rng.Next(0, validDoorways.Count);
-            if (dungeon.weightSummation <= 0) dungeon.SumWeights();
-            uint desiredWeight = (uint)rng.Next(0, dungeon.weightSummation);
+            uint desiredWeight = (uint)rng.Next(0, dungeon.tileWeightSum);
             uint weightSum = 0;
             if (dungeon.tileset.Length > 1) {
                 for (byte i = 0; i < dungeon.tileset.Length; i++) {
@@ -248,13 +329,17 @@ public class DungeonGeneration : MonoBehaviour
                         for (int k = 1; k < quality; k++) {
                             //Raycast along path and delete if it overlaps
                             yield return new WaitForFixedUpdate();
-                            RaycastHit[] hits = Physics.SphereCastAll(pathwayCoordinates[k] + Vector3.up, dungeon.pathWidth / 2, Vector3.down, dungeon.pathWidth, 256);
-                            for (byte l = 0; l < hits.Length; l++) {
-                                if (hits[l].collider.transform.parent.gameObject.Equals(path)) continue;
-                                else if (hits[l].collider.transform.Equals(validDoorways[i].doorway.parent)) continue;
-                                else if (hits[l].collider.transform.Equals(validDoorways[j].doorway.parent)) continue;
+                            connectionTime += Time.deltaTime;
+                            totalTime += Time.deltaTime;
+                            float f = Mathf.Max(dungeon.pathHeight - dungeon.pathWidth, 1);
+
+                            int hit = Physics.SphereCastNonAlloc(pathwayCoordinates[k] + Vector3.up * f, dungeon.pathWidth / 2, Vector3.down, castResults, f + 0.01f, 256);
+                            for (byte s = 0; s < hit; s++) {
+                                if (castResults[s].collider.transform.parent.gameObject.Equals(path)) continue;
+                                else if (castResults[s].collider.transform.Equals(validDoorways[i].doorway.parent)) continue;
+                                else if (castResults[s].collider.transform.Equals(validDoorways[j].doorway.parent)) continue;
                                 else {
-                                    Debug.LogWarning($"{path.name} overlaps {hits[l].collider.transform.parent.name}'s {hits[l].collider.name}");
+                                    Debug.LogWarning($"{path.name} overlaps {castResults[s].collider.transform.parent.name}'s {castResults[s].collider.name}");
                                     Destroy(path);
                                     exit = true;
                                     goto SKIP;
@@ -263,7 +348,7 @@ public class DungeonGeneration : MonoBehaviour
                         }
                         SKIP:
                         if (exit) continue;
-                        
+
                         //Mark as used
                         destroyDoorways.Add(validDoorways[i].doorway.gameObject);
                         destroyDoorways.Add(validDoorways[j].doorway.gameObject);
@@ -275,20 +360,159 @@ public class DungeonGeneration : MonoBehaviour
         //Remove door walls
         for (int i = destroyDoorways[0].Equals(dungeonTileParent) ? 1 : 0; i < destroyDoorways.Count; i++) Destroy(destroyDoorways[i]);
         yield return new WaitForFixedUpdate();
+        totalTime += Time.deltaTime;
         navMeshSurface.BuildNavMesh();
-        dungeonGenerated = true;
         Debug.Log($"Generated a dungeon covering {currentSize}m");
+        #endregion
 
         //Map
         yield return new WaitForFixedUpdate();
+        totalTime += Time.deltaTime;
         Vector3 center = navMeshSurface.navMeshData.sourceBounds.center;
+        Vector3 extents = navMeshSurface.navMeshData.sourceBounds.extents;
         mapCam.transform.localPosition = new Vector3(center.x, dungeon.mapHeight + 1, center.z);
-        mapCam.orthographicSize = Mathf.Max(navMeshSurface.navMeshData.sourceBounds.extents.x, navMeshSurface.navMeshData.sourceBounds.extents.z);
+        mapCam.orthographicSize = Mathf.Max(extents.x, extents.z);
         mapCam.enabled = true;
         yield return new WaitForEndOfFrame();
+        totalTime += Time.deltaTime;
         mapCam.Render();
         yield return new WaitForEndOfFrame();
+        totalTime += Time.deltaTime;
         mapCam.enabled = false;
+
+        //Create the forest
+        if (terrain != null) {
+            extents = new Vector3(Mathf.Ceil(extents.x), Mathf.Ceil(extents.y), Mathf.Ceil(extents.z));
+            int X = (int)extents.x, Z = (int)extents.z;
+            int X_ = X + 1, Z_ = Z + 1;
+            int A = 1, B = 1;
+            bool setX = false, setZ = false;
+            byte px = 0, pz = 0;
+            //Exceeds the listed primes, returns set value with precalculated values of reasonable size
+            if (X_ > 997) {
+                X = 1009;
+                X_ = 1010;
+                A = 101;
+                setX = true;
+            }
+            if (Z_ > 997) {
+                Z = 1009;
+                Z_ = 1010;
+                B = 101;
+                setZ = true;
+            }
+            //Get common divisor, adjusting if the value is a prime
+            while (!(setX && setZ)) {
+                if (!setX) {
+                    if (Primes[px] > X_) setX = true;
+                    if (Primes[px] == X_) {
+                        X_++;
+                        X++;
+                        px = 0;
+                    }
+                    if (X_ % Primes[px] == 0) A = Primes[px];
+                    px++;
+                }
+                if (!setZ) {
+                    if (Primes[pz] > Z_) setZ = true;
+                    if (Primes[pz] == Z_) {
+                        Z_++;
+                        Z++;
+                        pz = 0;
+                    }
+                    if (Z_ % Primes[pz] == 0) B = Primes[pz];
+                    pz++;
+                }
+            }
+            A = Mathf.Max(A, X_ / A);
+            B = Mathf.Max(B, Z_ / B);
+            int A_ = A + 1, B_ = B + 1, X__ = X_ + 1, Z__ = Z_ + 1;
+            int D = Z_ / B;
+            setChunkTris = new int[6 * A * B];
+
+            //All chunks share tri patterns, so only one array is needed
+            for (int a = 0; a < A; a++) {
+                for (int b = 0; b < B; b++) {
+                    int index = a * B + b;
+                    setChunkTris[6 * index] = index + a;
+                    setChunkTris[6 * index + 1] = index + a + 1;
+                    setChunkTris[6 * index + 2] = index + a + B + 1;
+                    setChunkTris[6 * index + 3] = index + a + 1;
+                    setChunkTris[6 * index + 4] = index + a + B + 2;
+                    setChunkTris[6 * index + 5] = index + a + B + 1;
+                }
+            }
+
+            //Chunks
+            chunkData = new MeshChunk[X_ / A * Z_ / B];
+            chunks = new GameObject[chunkData.Length];
+            for (int i = 0; i < chunkData.Length; i++) {
+                chunkData[i] = new MeshChunk(A_ * B_, A * B * 6);
+                chunkData[i].triangles = setChunkTris;
+            }
+
+            //Set heights with an extra row for the edges
+            yValues = new Vector2[X__ * Z__];
+            for (int x = 0; x < X__; x++) {
+                for (int z = 0; z < Z__; z++) {
+                    int index = x * Z__ + z;
+                    Vector3 pos = new Vector3(2 * x - X, -extents.y, 2 * z - Z) + center;
+                    pos = terrain.InverseTransformPoint(HitCheck(terrain.TransformPoint(pos), extents.y * 2));
+                    if (pos.y > center.y - extents.y) {
+                        points.Add(new Point(x, z));
+                        yValues[index] = new Vector2(-1, pos.y);
+                    } else yValues[index] = new Vector2(1, pos.y);
+                }
+            }
+
+            //Update the rest of the heights not set from raycast
+            while (points.Count > 0) {
+                int index = points[0].x * Z__ + points[0].z;
+                if (index + Z__ < yValues.Length) CheckPoint(Z__, points[0].x + 1, points[0].z, yValues[index].y);
+                if (index - Z__ > -1) CheckPoint(Z__, points[0].x - 1, points[0].z, yValues[index].y);
+                if ((index + 1) % Z__ != 0) CheckPoint(Z__, points[0].x, points[0].z + 1, yValues[index].y);
+                if (index % Z__ != 0) CheckPoint(Z__, points[0].x, points[0].z - 1, yValues[index].y);
+                points.RemoveAt(0);
+            }
+
+            //Set chunk Ys
+            for (int x = 0; x < X_; x++) {
+                for (int z = 0; z < Z_; z++) {
+                    int index = (x / A) * D + (z / B);
+                    int id = x * Z__ + z;
+                    float ax = 2 * (x % A) - A_;
+                    float bz = 2 * (z % B) - B_;
+                    if ((x + 1) % A == 0 && x > 0) {
+                        chunkData[index].Verts(A * B_ + z % B, x + 1, z, new Vector3(ax + 2, yValues[id + Z__].y, bz));
+                        if ((z + 1) % B == 0 && z > 0) chunkData[index].Verts(A * B_ + B, x + 1, z + 1, new Vector3(ax + 2, yValues[id + Z__ + 1].y, bz + 2));
+                    }
+                    if ((z + 1) % B == 0 && z > 0) chunkData[index].Verts(x % A * B_ + B, x, z + 1, new Vector3(ax, yValues[id + 1].y, bz + 2));
+                    chunkData[index].Verts(x % A * B_ + z % B, x, z, new Vector3(ax, yValues[id].y, bz));
+                }
+            }
+
+            //Create chunks local
+            for (int i = 0; i < chunkData.Length; i++) {
+                GameObject g = Instantiate(dungeon.chunkPrefab, terrain);
+                if (g.TryGetComponent<MeshFilter>(out MeshFilter mf)){
+                    chunkData[i].Create();
+                    mf.sharedMesh = chunkData[i].chunk;
+                    g.name = $"Chunk #{i + 1}";
+                }
+                if (g.TryGetComponent<MeshCollider>(out MeshCollider mc)) mc.sharedMesh = chunkData[i].chunk;
+                if (g.TryGetComponent<SnowySurface>(out SnowySurface ss)) ss.TileDimensions(A_, B_);
+                g.transform.localPosition = new Vector3(2 * A * (i / D) - X + A_ + center.x, 0, 2 * B * (i % D) - Z + B_ + center.z);
+                chunks[i] = g;
+            }
+
+            yield return new WaitForFixedUpdate();
+            totalTime += Time.deltaTime;
+        }
+
+        //Finished
+        yield return new WaitForFixedUpdate();
+        totalTime += Time.deltaTime;
+        dungeonGenerated = true;
     }
 
     //Checks valid spawn a few times
@@ -303,7 +527,7 @@ public class DungeonGeneration : MonoBehaviour
         tile.transform.Rotate(Vector3.down * (Vector3.SignedAngle(tile.transform.forward, to.forward, Vector3.up) + variation));
 
         //Move tile back a lil bit with noise
-        tile.transform.position += tile.transform.position - WorldForward(to) + Random.insideUnitSphere;
+        tile.transform.position += tile.transform.position - WorldForward(to) + Vector3.Scale(Random.insideUnitSphere, dungeon.tileset[index].tile.randomVariation);
 
         //Check if overlapping
         Vector3 bounds = tile.transform.localScale;
@@ -325,14 +549,14 @@ public class DungeonGeneration : MonoBehaviour
     private GameObject CreatePath(Transform from, Transform to, Transform parent, float weight, string name = default)
     {
         doorwayCoordinates = new Vector3[nomialSize] { from.position, WorldForward(from, weight), Vector3.Lerp(from.position, to.position, 0.375f) + from.forward, Vector3.Lerp(from.position, to.position, 0.625f) + to.forward, WorldForward(to, weight), to.position };
-        Beizer();
+        Bezier();
         GameObject path = Instantiate(dungeon.pathPrefab);
         path.transform.SetParent(parent, true);
         if (name == default) path.name = $"#{tileID}'s Path";
         else path.name = name;
         //Mesh
         if (path.TryGetComponent<MeshFilter>(out MeshFilter filter)) {
-            Mesh m = CreateMesh(from.forward, -to.forward);
+            Mesh m = CreatePathMesh(from.forward, -to.forward);
             filter.sharedMesh = m;
             if (path.TryGetComponent<MeshCollider>(out MeshCollider collider)) collider.sharedMesh = m;
             if (path.transform.GetChild(0).TryGetComponent<MeshCollider>(out MeshCollider childBounds)) childBounds.sharedMesh = m;
@@ -347,8 +571,23 @@ public class DungeonGeneration : MonoBehaviour
         return path;
     }
 
+    //Moves point up to a hit bounding box
+    private Vector3 HitCheck(Vector3 pos, float length)
+    {
+        if (Physics.Raycast(pos, Vector3.up, out RaycastHit hit, length, 256)) return hit.point - Vector3.up * 0.02f;
+        else return pos;
+    }
+
+    private void CheckPoint(int Z_, int x, int z, float Y)
+    {
+        int id = x * Z_ + z;
+        if (yValues[id].x < 0) return;
+        yValues[id] = new Vector2(-1, Mathf.Max(yValues[id].y, Y));
+        points.Add(new Point(x, z));
+    }
+
     //Create a curve from door to door
-    private void Beizer()
+    private void Bezier()
     {
         pathwayCoordinates = new Vector3[quality + 1];
         for (int l = 0; l <= quality; l++) {
@@ -365,7 +604,7 @@ public class DungeonGeneration : MonoBehaviour
     }
 
     //Create the mesh because I am so smart and cool and awesome :)
-    private Mesh CreateMesh(Vector3 dirStart, Vector3 dirEnd)
+    private Mesh CreatePathMesh(Vector3 dirStart, Vector3 dirEnd)
     {
         //Get point's transform.right values
         Vector3[] pathwayDirection = new Vector3[quality + 1];
@@ -373,45 +612,47 @@ public class DungeonGeneration : MonoBehaviour
         pathwayDirection[quality] = dirEnd;
         for (int i = 1; i < quality; i++) pathwayDirection[i] = (pathwayCoordinates[i + 1] - pathwayCoordinates[i]).normalized;
 
+        //Seams version
         //Mesh data
         Mesh mesh = new Mesh();
-        Vector3[] vertices = new Vector3[quality * 2 + 2];
+        Vector3[] vertices = new Vector3[quality * 5 + 5];
         Vector2[] uvs = new Vector2[vertices.Length];
-        int[] tris = new int[quality * 6];
-        float leftSideSum = 0, rightSideSum = 0, left = 0, right = 0;
+        int[] tris = new int[quality * 24];
+        float distanceSum = 0, distance = 0;
 
         //Record points
         for (int i = 0; i <= quality; i++) {
             Debug.DrawRay(pathwayCoordinates[i], pathwayDirection[i], Color.blue, 2);
             pathwayDirection[i] = Vector3.Cross(pathwayDirection[i], Vector3.up) * (dungeon.pathWidth / 2);
-            vertices[i * 2] = pathwayCoordinates[i] + pathwayDirection[i];
-            vertices[i * 2 + 1] = pathwayCoordinates[i] - pathwayDirection[i];
-            Debug.DrawRay(vertices[i * 2], -pathwayDirection[i], Color.red, 2);
-            Debug.DrawRay(vertices[i * 2 + 1], pathwayDirection[i], Color.magenta, 2);
-            if (i > 0) {
-                leftSideSum += Vector3.Distance(vertices[i * 2], vertices[i * 2 - 2]);
-                rightSideSum += Vector3.Distance(vertices[i * 2 + 1], vertices[i * 2 - 1]);
-            }
+            vertices[i * 5] = pathwayCoordinates[i] + pathwayDirection[i] + Vector3.up * dungeon.pathHeight;
+            vertices[i * 5 + 1] = pathwayCoordinates[i] + pathwayDirection[i];
+            vertices[i * 5 + 2] = pathwayCoordinates[i] - pathwayDirection[i];
+            vertices[i * 5 + 3] = pathwayCoordinates[i] - pathwayDirection[i] + Vector3.up * dungeon.pathHeight;
+            vertices[i * 5 + 4] = vertices[i * 5];
+            if (i < quality) distanceSum += Vector3.Distance(pathwayCoordinates[i], pathwayCoordinates[i + 1]);
         }
 
         //Uvs
         for (int i = 0; i <= quality; i++) {
-            uvs[i * 2] = new Vector2(0, left / leftSideSum);
-            uvs[i * 2 + 1] = new Vector2(1, right / rightSideSum);
-            if (i < quality) {
-                left += Vector3.Distance(vertices[i * 2], vertices[i * 2 + 2]);
-                right += Vector3.Distance(vertices[i * 2 + 1], vertices[i * 2 + 3]);
-            }
+            uvs[i * 5] = new Vector2(-dungeon.pathHeight, distance / distanceSum);
+            uvs[i * 5 + 1] = new Vector2(0.05f, distance / distanceSum);
+            uvs[i * 5 + 2] = new Vector2(0.95f, distance / distanceSum);
+            uvs[i * 5 + 3] = new Vector2(dungeon.pathHeight, distance / distanceSum);
+            uvs[i * 5 + 4] = new Vector2(dungeon.pathHeight, distance / distanceSum);
+            if (i < quality) distance += Vector3.Distance(pathwayCoordinates[i], pathwayCoordinates[i + 1]);
         }
 
         //Triangles
         for (int i = 0; i < quality; i++) {
-            tris[6 * i] = 2 * i + 2;
-            tris[6 * i + 1] = 2 * i + 1;
-            tris[6 * i + 2] = 2 * i;
-            tris[6 * i + 3] = 2 * i + 2;
-            tris[6 * i + 4] = 2 * i + 3;
-            tris[6 * i + 5] = 2 * i + 1;
+            for (byte j = 0; j < 4; j++) {
+                int index = i * 5 + j;
+                tris[24 * i + j * 6] = index + 5;
+                tris[24 * i + j * 6 + 1] = index + 1;
+                tris[24 * i + j * 6 + 2] = index;
+                tris[24 * i + j * 6 + 3] = index + 5;
+                tris[24 * i + j * 6 + 4] = index + 6;
+                tris[24 * i + j * 6 + 5] = index + 1;
+            }
         }
 
         //Set mesh data

@@ -8,6 +8,7 @@ TagManager:
   - Item Spawner
   - Bounds
   - MapIcon
+  - Snowy
   layers:
   - Default
   - TransparentFX
@@ -18,7 +19,7 @@ TagManager:
   - Shell
   - Interact
   - Dungeon Bounds
-  - 
+  - Terrain
   - 
   - 
   - 

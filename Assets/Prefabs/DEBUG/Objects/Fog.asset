@@ -9,11 +9,10 @@ MonoBehaviour:
   m_GameObject: {fileID: 0}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: c4ef143ec9e593f40ae24312fdf40ca0, type: 3}
-  m_Name: Tile B
+  m_Script: {fileID: 11500000, guid: f9914c5c0b0e9d643973a1e0b5a84f57, type: 3}
+  m_Name: Fog
   m_EditorClassIdentifier: 
-  prefab: {fileID: 8760764905224217946, guid: 2b76260ecc8726146abe5a8c2d62036c, type: 3}
-  meterage: 81
-  spawnSpacing: 20
-  randomVariation: {x: 1, y: 1, z: 1}
-  doorCount: 2
+  Color: {r: 0.65601635, g: 0.735849, b: 0.7310107, a: 0.2509804}
+  Density: 1
+  Distance: 40
+  Blend: 0.5
