@@ -486,7 +486,7 @@ Camera:
   field of view: 60
   orthographic: 1
   orthographic size: 128
-  m_Depth: -100
+  m_Depth: 100
   m_CullingMask:
     serializedVersion: 2
     m_Bits: 2
@@ -1207,8 +1207,8 @@ PrefabInstance:
 SceneRoots:
   m_ObjectHideFlags: 0
   m_Roots:
+  - {fileID: 1740132878}
   - {fileID: 502405359}
   - {fileID: 526962526}
   - {fileID: 32610635}
   - {fileID: 543054233}
-  - {fileID: 1740132878}

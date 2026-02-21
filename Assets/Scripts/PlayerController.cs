@@ -7,6 +7,9 @@ public class PlayerController : MonoBehaviour
     public Transform head;
     private const float HeadHeight = 0.625f;
     public ParticleSystem[] weathersList;
+    public Material weathersMaterial;
+    private float weatherOffset = 0;
+    private const float Ratio = 0.055f;
 
     [Header("Controls")]
     public bool paused;
@@ -153,7 +156,11 @@ public class PlayerController : MonoBehaviour
 
             movementDir = transform.forward * (movementInput.y * moveMulti) + transform.right * (movementInput.x * moveMulti);
             if (wasLaunched) movementDir = launchVector;
-            transform.position += CollisionCheck(movementDir, wasLaunched);
+            movementDir = CollisionCheck(movementDir, wasLaunched);
+            //transform.position += CollisionCheck(movementDir, wasLaunched);
+            float dot = Vector3.Dot(transform.right, movementDir.normalized);
+            if (dot > 0.1f || dot < -0.1f) ScrollWeather(dot * movementDir.magnitude * moveSpeed * 2.5f);
+            transform.position += movementDir;
         }
 
         //Crouch head move
@@ -236,6 +243,13 @@ public class PlayerController : MonoBehaviour
         for (byte b = 1; b <= weathersList.Length; b++) weathersList[b - 1].gameObject.SetActive(b == (int)weather);
     }
 
+    //Scroll the weather shader to give the illusion of it being in world space
+    private void ScrollWeather(float add)
+    {
+        weatherOffset += add * Ratio;
+        weathersMaterial.SetFloat("_XOffset", weatherOffset);
+    }
+
     #region Controls
     //Set pause to given state
     public void Pause(bool state)
@@ -248,7 +262,9 @@ public class PlayerController : MonoBehaviour
     //Look rotate body and head
     public void CameraMovement(InputAction.CallbackContext ctx)
     {
-        transform.Rotate(ctx.ReadValue<Vector2>().x * lookSpeed * Vector3.up);
+        float x = ctx.ReadValue<Vector2>().x * lookSpeed;
+        transform.Rotate(x * Vector3.up);
+        ScrollWeather(x);
         head.localEulerAngles = new Vector3(head.localEulerAngles.x - ctx.ReadValue<Vector2>().y * lookSpeed, 0, 0);
     }
 

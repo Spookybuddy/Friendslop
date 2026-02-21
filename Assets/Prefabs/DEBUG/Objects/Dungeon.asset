@@ -26,7 +26,7 @@ MonoBehaviour:
   - tile: {fileID: 11400000, guid: 0c6efbaa436f07c43840332bd2f1592f, type: 2}
     spawnWeight: 16
   tilePlacementAttempts: 5
-  tileWeightSum: 5643
+  tileWeightSum: 99
   targetSurfaceArea: 3093
   minimumSurfaceArea: 2700
   minRotationVariation: 30
@@ -35,6 +35,7 @@ MonoBehaviour:
     type: 3}
   quality: 18
   pathWidth: 2
+  pathHeight: 5
   moreConnections: 1
   selfConnections: 0
   distanceMultiplier: 3
@@ -46,4 +47,4 @@ MonoBehaviour:
   - weather: 0
     fog: {fileID: 11400000, guid: e558bfae6b322fc468864162710edf04, type: 2}
     weight: 5
-  atmosWeightSum: 286
+  atmosWeightSum: 5

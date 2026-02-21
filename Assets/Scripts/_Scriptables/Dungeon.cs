@@ -61,6 +61,8 @@ public class Dungeon : ScriptableObject
     [ContextMenu("Calculate Weight Sum")]
     public void SumWeights()
     {
+        tileWeightSum = 0;
+        atmosWeightSum = 0;
         for (int i = 0; i < tileset.Length; i++) tileWeightSum += tileset[i].spawnWeight;
         for (int i = 0; i < atmospheres.Length; i++) atmosWeightSum += atmospheres[i].weight;
         if (minimumSurfaceArea > targetSurfaceArea) (targetSurfaceArea, minimumSurfaceArea) = (minimumSurfaceArea, targetSurfaceArea);

@@ -10681,7 +10681,7 @@ ParticleSystem:
     rateOverTime:
       serializedVersion: 2
       minMaxState: 0
-      scalar: 6000
+      scalar: 1500
       minScalar: 10
       maxCurve:
         serializedVersion: 2
@@ -54783,7 +54783,7 @@ ParticleSystem:
     rateOverTime:
       serializedVersion: 2
       minMaxState: 0
-      scalar: 300
+      scalar: 150
       minScalar: 10
       maxCurve:
         serializedVersion: 2
@@ -58936,11 +58936,12 @@ MonoBehaviour:
   - {fileID: 2556213512554482380}
   - {fileID: 7777947359671335462}
   - {fileID: 4137025759585091330}
+  weathersMaterial: {fileID: 2100000, guid: 19b370d8635c98d49abb326b3b3d847d, type: 2}
   paused: 0
   lastSurface: Default
   groundLayers:
     serializedVersion: 2
-    m_Bits: 657
+    m_Bits: 145
   gravityCurve:
     serializedVersion: 2
     m_Curve:
