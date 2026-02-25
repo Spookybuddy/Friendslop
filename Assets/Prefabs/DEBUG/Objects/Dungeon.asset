@@ -42,9 +42,26 @@ MonoBehaviour:
   dotLimit: -0.7
   chunkPrefab: {fileID: 4943488530812381464, guid: 6bf29aef116d38040be7d101f3416a8e,
     type: 3}
+  perlinScale: {x: 3, y: 1, z: 3}
+  slerpDistance: 3
+  extra0Point: 0
+  outsideObjects: []
+  objectWeightSum: 0
   mapHeight: 50
   atmospheres:
   - weather: 0
     fog: {fileID: 11400000, guid: e558bfae6b322fc468864162710edf04, type: 2}
     weight: 5
-  atmosWeightSum: 5
+  - weather: 1
+    fog: {fileID: 11400000, guid: e558bfae6b322fc468864162710edf04, type: 2}
+    weight: 5
+  - weather: 2
+    fog: {fileID: 11400000, guid: e558bfae6b322fc468864162710edf04, type: 2}
+    weight: 5
+  - weather: 3
+    fog: {fileID: 11400000, guid: e558bfae6b322fc468864162710edf04, type: 2}
+    weight: 5
+  - weather: 4
+    fog: {fileID: 11400000, guid: e558bfae6b322fc468864162710edf04, type: 2}
+    weight: 5
+  atmosWeightSum: 25

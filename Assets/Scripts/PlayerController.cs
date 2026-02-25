@@ -9,7 +9,6 @@ public class PlayerController : MonoBehaviour
     public ParticleSystem[] weathersList;
     public Material weathersMaterial;
     private float weatherOffset = 0;
-    private const float Ratio = 0.055f;
 
     [Header("Controls")]
     public bool paused;
@@ -40,6 +39,8 @@ public class PlayerController : MonoBehaviour
     public LayerMask groundLayers;
     private const float GravitationalForce = 9.9f;
     public AnimationCurve gravityCurve;
+    [HideInInspector]
+    public float snowDepth = 0;
 
     [Header("Inventory")]
     public Transform holdPosition;
@@ -148,9 +149,11 @@ public class PlayerController : MonoBehaviour
             moveMulti *= (isSprinting ? sprintSpeed : isSneaking ? sneakSpeed : 1);
 
             //Snow
-            if (Physics.Raycast(transform.position, Vector3.down, out RaycastHit snow, 1.1f, 512)) {
-                if (snow.collider.gameObject.TryGetComponent<SnowySurface>(out SnowySurface script)) {
-                    if (script.snowMaxDepth > snow.distance) moveMulti *= Mathf.Clamp(1 - script.Carve(snow.triangleIndex * 3, snow.barycentricCoordinate), 0.6f, 1);
+            if (snowDepth > 0) {
+                if (Physics.Raycast(transform.position, Vector3.down, out RaycastHit snow, snowDepth, 512)) {
+                    if (snow.collider.gameObject.TryGetComponent<SnowySurface>(out SnowySurface script)) {
+                        moveMulti *= Mathf.Clamp(1 - script.Carve(snow.triangleIndex * 3, snow.barycentricCoordinate), 0.5f, 0.9f) + 0.1f;
+                    }
                 }
             }
 
@@ -240,14 +243,24 @@ public class PlayerController : MonoBehaviour
     //Get/Set weather to/from manager
     public void Weather(Weathers weather)
     {
-        for (byte b = 1; b <= weathersList.Length; b++) weathersList[b - 1].gameObject.SetActive(b == (int)weather);
+        for (byte b = 1; b <= weathersList.Length; b++) weathersList[b - 1].gameObject.SetActive(b == (byte)weather);
+        string nam = $"_WEATHER_{weather.ToString().ToUpper()}";
+        //Debug.Log(nam);
+        weathersMaterial.EnableKeyword(nam);
     }
 
     //Scroll the weather shader to give the illusion of it being in world space
     private void ScrollWeather(float add)
     {
-        weatherOffset += add * Ratio;
+        weatherOffset += add;
         weathersMaterial.SetFloat("_XOffset", weatherOffset);
+    }
+
+    //Update snow check length based on chunks' max depth
+    public void SetSnowDepth(float depth)
+    {
+        if (depth <= 0) snowDepth = 0;
+        else snowDepth = depth + 0.1f + playerColliderRadius;
     }
 
     #region Controls

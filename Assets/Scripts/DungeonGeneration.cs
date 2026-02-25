@@ -75,7 +75,7 @@ public class DungeonGeneration : MonoBehaviour
     private MeshChunk[] chunkData;
     private int[] setChunkTris;
     private readonly List<Point> points = new List<Point>();
-    private Vector2[] yValues;
+    private Vector3[] yValues;
     private readonly short[] Primes = new short[] {
           2,   3,   5,   7,  11,  13,  17,  19,  23,  29,  31,  37,  41,  43,  47,  53,  59,  61,  67,  71,  73,  79,  83,  89,  97, 101, 103, 107, 109, 113, 127, 131, 137, 139, 149,
         151, 157, 163, 167, 173, 179, 181, 191, 193, 197, 199, 211, 223, 227, 229, 233, 239, 241, 251, 257, 263, 269, 271, 277, 281, 283, 293, 307, 311, 313, 317, 331, 337, 347, 349,
@@ -83,6 +83,11 @@ public class DungeonGeneration : MonoBehaviour
         577, 587, 593, 599, 601, 607, 613, 617, 619, 631, 641, 643, 647, 653, 659, 661, 673, 677, 683, 691, 701, 709, 719, 727, 733, 739, 743, 751, 757, 761, 769, 773, 787, 797, 809,
         811, 821, 823, 827, 829, 839, 853, 857, 859, 863, 877, 881, 883, 887, 907, 911, 919, 929, 937, 941, 947, 953, 967, 971, 977, 983, 991, 997
     };
+    //1009, 1013, 1019, 1021, 1031, 1033, 1039, 1049, 1051, 1061, 1063, 1069, 1087, 1091, 1093, 1097, 1103, 1109, 1117, 1123, 1129, 1151, 1153, 1163, 1171, 1181, 1187, 1193, 1201, 1213,
+    //1217, 1223, 1229, 1231, 1237, 1249, 1259, 1277, 1279, 1283, 1289, 1291, 1297, 1301, 1303, 1307, 1319, 1321, 1327, 1361, 1367, 1373, 1381, 1399, 1409, 1423, 1427, 1429, 1433, 1439,
+    //1447, 1451, 1453, 1459, 1471, 1481, 1483, 1487, 1489, 1493, 1499, 1511, 1523, 1531, 1543, 1549, 1553, 1559, 1567, 1571, 1579, 1583, 1597, 1601, 1607, 1609, 1613, 1619, 1621, 1627,
+    //1637, 1657, 1663, 1667, 1669, 1693, 1697, 1699, 1709, 1721, 1723, 1733, 1741, 1747, 1753, 1759, 1777, 1783, 1787, 1789, 1801, 1811, 1823, 1831, 1847, 1861, 1867, 1871, 1873, 1877,
+    //1879, 1889, 1901, 1907, 1913, 1931, 1933, 1949, 1951, 1973, 1979, 1987, 1993, 1997, 1999
     [Header("Stats")]
     private Transform dungeonTileParent;
     public uint currentSize;
@@ -90,6 +95,8 @@ public class DungeonGeneration : MonoBehaviour
     private int tileID = 0;
     [HideInInspector]
     public int atmoID = 0;
+    [HideInInspector]
+    public float snowRayLength = 0;
     private byte bestTileID = 0;
     private readonly List<GameObject> destroyDoorways = new List<GameObject>();
     private readonly List<TileCheck> validDoorways = new List<TileCheck>();
@@ -134,7 +141,9 @@ public class DungeonGeneration : MonoBehaviour
 
         for (byte i = 0; i < chunks.Length; i++) Destroy(chunks[i]);
 
+        //I should expect that the weights are already summed, but people are dumb so I have to cater to the lowest denominator
         dungeon.SumWeights();
+
         uint desiredWeight = (uint)rng.Next(0, dungeon.atmosWeightSum);
         uint weightSum = 0;
         if (dungeon.atmospheres.Length > 1) {
@@ -159,6 +168,8 @@ public class DungeonGeneration : MonoBehaviour
     public IEnumerator Generate()
     {
         if (dungeon == null) yield break;
+        System.Diagnostics.Stopwatch watch = new System.Diagnostics.Stopwatch();
+        watch.Start();
 
         //Entrance room spawned first
         dungeonTileParent = Instantiate(tileParent, transform).transform;
@@ -193,8 +204,6 @@ public class DungeonGeneration : MonoBehaviour
             //yield return new WaitForEndOfFrame(); //This was yielding different results everytime, whereas fixed time gives deterministic results
             yield return new WaitForFixedUpdate();
             bool skip = true;
-            generationTime += Time.deltaTime;
-            totalTime += Time.deltaTime;
 
             //No more open doorways
             if (validDoorways.Count < 1) {
@@ -298,6 +307,7 @@ public class DungeonGeneration : MonoBehaviour
             currentSize += dungeon.tileset[tileIndex].tile.meterage;
             tileID++;
         }
+        generationTime = watch.ElapsedMilliseconds / 1000f;
         
         //Connect random open doors to other ones nearby
         if (dungeon.moreConnections) {
@@ -329,8 +339,6 @@ public class DungeonGeneration : MonoBehaviour
                         for (int k = 1; k < quality; k++) {
                             //Raycast along path and delete if it overlaps
                             yield return new WaitForFixedUpdate();
-                            connectionTime += Time.deltaTime;
-                            totalTime += Time.deltaTime;
                             float f = Mathf.Max(dungeon.pathHeight - dungeon.pathWidth, 1);
 
                             int hit = Physics.SphereCastNonAlloc(pathwayCoordinates[k] + Vector3.up * f, dungeon.pathWidth / 2, Vector3.down, castResults, f + 0.01f, 256);
@@ -356,32 +364,34 @@ public class DungeonGeneration : MonoBehaviour
                 }
             }
         }
+        connectionTime = watch.ElapsedMilliseconds / 1000f - generationTime;
 
         //Remove door walls
         for (int i = destroyDoorways[0].Equals(dungeonTileParent) ? 1 : 0; i < destroyDoorways.Count; i++) Destroy(destroyDoorways[i]);
         yield return new WaitForFixedUpdate();
-        totalTime += Time.deltaTime;
         navMeshSurface.BuildNavMesh();
         Debug.Log($"Generated a dungeon covering {currentSize}m");
         #endregion
 
         //Map
         yield return new WaitForFixedUpdate();
-        totalTime += Time.deltaTime;
         Vector3 center = navMeshSurface.navMeshData.sourceBounds.center;
         Vector3 extents = navMeshSurface.navMeshData.sourceBounds.extents;
         mapCam.transform.localPosition = new Vector3(center.x, dungeon.mapHeight + 1, center.z);
         mapCam.orthographicSize = Mathf.Max(extents.x, extents.z);
         mapCam.enabled = true;
         yield return new WaitForEndOfFrame();
-        totalTime += Time.deltaTime;
         mapCam.Render();
         yield return new WaitForEndOfFrame();
-        totalTime += Time.deltaTime;
         mapCam.enabled = false;
 
         //Create the forest
         if (terrain != null) {
+            //Reset rng to ensure its the same just in case
+            rng = new System.Random(seed);
+            Random.InitState(seed);
+            //Might want to scrap this in favor of preset chunk sizes simply filling in the area (~20 verts, doubling the verts to 1/m instead of 0.5/m)
+            //Take the arbitrary dimensions of the navmesh and create chunked terrain to fill it in
             extents = new Vector3(Mathf.Ceil(extents.x), Mathf.Ceil(extents.y), Mathf.Ceil(extents.z));
             int X = (int)extents.x, Z = (int)extents.z;
             int X_ = X + 1, Z_ = Z + 1;
@@ -452,7 +462,7 @@ public class DungeonGeneration : MonoBehaviour
             }
 
             //Set heights with an extra row for the edges
-            yValues = new Vector2[X__ * Z__];
+            yValues = new Vector3[X__ * Z__];
             for (int x = 0; x < X__; x++) {
                 for (int z = 0; z < Z__; z++) {
                     int index = x * Z__ + z;
@@ -460,19 +470,39 @@ public class DungeonGeneration : MonoBehaviour
                     pos = terrain.InverseTransformPoint(HitCheck(terrain.TransformPoint(pos), extents.y * 2));
                     if (pos.y > center.y - extents.y) {
                         points.Add(new Point(x, z));
-                        yValues[index] = new Vector2(-1, pos.y);
-                    } else yValues[index] = new Vector2(1, pos.y);
+                        yValues[index] = new Vector3(-1, pos.y, 0);
+                    } else yValues[index] = new Vector3(1, pos.y, 1);
+                    //X = has been set, Y = value, Z = perlin multiplier
                 }
             }
 
             //Update the rest of the heights not set from raycast
+            Point checkpoint = points[^1];
+            sbyte ring = (sbyte)(dungeon.extra0Point ? -1 : 0);
+            float value = 0;
             while (points.Count > 0) {
+                //Add adjacent points to list
                 int index = points[0].x * Z__ + points[0].z;
-                if (index + Z__ < yValues.Length) CheckPoint(Z__, points[0].x + 1, points[0].z, yValues[index].y);
-                if (index - Z__ > -1) CheckPoint(Z__, points[0].x - 1, points[0].z, yValues[index].y);
-                if ((index + 1) % Z__ != 0) CheckPoint(Z__, points[0].x, points[0].z + 1, yValues[index].y);
-                if (index % Z__ != 0) CheckPoint(Z__, points[0].x, points[0].z - 1, yValues[index].y);
+                if (index + Z__ < yValues.Length) CheckPoint(Z__, points[0].x + 1, points[0].z, yValues[index].y, value);
+                if (index - Z__ > -1) CheckPoint(Z__, points[0].x - 1, points[0].z, yValues[index].y, value);
+                if ((index + 1) % Z__ != 0) CheckPoint(Z__, points[0].x, points[0].z + 1, yValues[index].y, value);
+                if (index % Z__ != 0) CheckPoint(Z__, points[0].x, points[0].z - 1, yValues[index].y, value);
+
+                //When marked point is matched, get next last point & update value. This gives a ring effect
+                if (points[0].Equals(checkpoint) && value < 1) {
+                    checkpoint = points[^1];
+                    ring++;
+                    value = Mathf.Clamp01((1 - Mathf.Cos(Mathf.PI * ring / dungeon.slerpDistance)) / 2f);
+                }
                 points.RemoveAt(0);
+            }
+
+            //Add perlin to yvalues
+            for (int x = 0; x < X__; x++) {
+                for (int z = 0; z < Z__; z++) {
+                    int index = x * Z__ + z;
+                    yValues[index].y = yValues[index].y + Mathf.PerlinNoise(dungeon.perlinScale.x * x / X__, dungeon.perlinScale.z * z / Z__) * yValues[index].z * dungeon.perlinScale.y;
+                }
             }
 
             //Set chunk Ys
@@ -490,8 +520,45 @@ public class DungeonGeneration : MonoBehaviour
                     chunkData[index].Verts(x % A * B_ + z % B, x, z, new Vector3(ax, yValues[id].y, bz));
                 }
             }
+            /*
+            //This works better using the Z, but still yields poor results. Will need to plan out something both decent looking and optimized. Maybe also reduce the number of loops here
+            //Randomly spawn decor
+            if (dungeon.outsideObjects.Length > 0) {
+                for (int x = 0; x < X__; x++) {
+                    for (int z = 0; z < Z__; z++) {
+                        int index = x * Z__ + z;
+                        if (yValues[index].z < 0 || yValues[index].z == 1) continue;
+                        //pick random decor
+                        int decor = 0;
+                        uint weight = (uint)rng.Next(0, dungeon.objectWeightSum);
+                        uint sum = 0;
+                        if (dungeon.outsideObjects.Length > 1) {
+                            for (byte i = 0; i < dungeon.outsideObjects.Length; i++) {
+                                sum += dungeon.tileset[i].spawnWeight;
+                                if (sum >= weight) {
+                                    decor = i;
+                                    break;
+                                }
+                            }
+                        }
+                        //Randomly spawn object
+                        weight = (uint)rng.Next(0, 255);
+                        if (weight > dungeon.outsideObjects[decor].spawnOdds) continue;
+                        Vector3 pos = new Vector3(2 * x - X, yValues[index].y + dungeon.outsideObjects[decor].Object.groundOffset - center.y, 2 * z - Z) + center;
+                        pos += Vector3.Scale(Random.insideUnitSphere, dungeon.outsideObjects[decor].randomVariation);
+                        //Collision check for dungeon bounds
+                        if (Physics.SphereCast(new Ray(terrain.TransformPoint(pos), Vector3.down * (dungeon.outsideObjects[decor].Object.groundOffset + 1)), dungeon.outsideObjects[decor].Object.spawnRadius, 256)) continue;
+                        GameObject pp = Instantiate(dungeon.outsideObjects[decor].Object.prefab, terrain);
+                        pp.transform.localPosition = pos;
+                        pp.name = $"{pp.name[..^7]}#{index}";
+                    }
+                }
+            }
+            */
+            yield return new WaitForFixedUpdate();
 
             //Create chunks local
+            snowRayLength = 0;
             for (int i = 0; i < chunkData.Length; i++) {
                 GameObject g = Instantiate(dungeon.chunkPrefab, terrain);
                 if (g.TryGetComponent<MeshFilter>(out MeshFilter mf)){
@@ -500,19 +567,22 @@ public class DungeonGeneration : MonoBehaviour
                     g.name = $"Chunk #{i + 1}";
                 }
                 if (g.TryGetComponent<MeshCollider>(out MeshCollider mc)) mc.sharedMesh = chunkData[i].chunk;
-                if (g.TryGetComponent<SnowySurface>(out SnowySurface ss)) ss.TileDimensions(A_, B_);
+                if (g.TryGetComponent<SnowySurface>(out SnowySurface ss)) {
+                    snowRayLength = Mathf.Max(snowRayLength, ss.MaxDepth());
+                    ss.TileDimensions(A_, B_);
+                }
                 g.transform.localPosition = new Vector3(2 * A * (i / D) - X + A_ + center.x, 0, 2 * B * (i % D) - Z + B_ + center.z);
                 chunks[i] = g;
             }
 
             yield return new WaitForFixedUpdate();
-            totalTime += Time.deltaTime;
         }
 
         //Finished
-        yield return new WaitForFixedUpdate();
-        totalTime += Time.deltaTime;
         dungeonGenerated = true;
+        watch.Stop();
+        totalTime = watch.ElapsedMilliseconds / 1000f;
+        Debug.Log($"{watch.ElapsedMilliseconds}ms");
     }
 
     //Checks valid spawn a few times
@@ -578,11 +648,12 @@ public class DungeonGeneration : MonoBehaviour
         else return pos;
     }
 
-    private void CheckPoint(int Z_, int x, int z, float Y)
+    //Checks if point has already been updated, adding to list if not
+    private void CheckPoint(int Z_, int x, int z, float Y, float perlin)
     {
         int id = x * Z_ + z;
         if (yValues[id].x < 0) return;
-        yValues[id] = new Vector2(-1, Mathf.Max(yValues[id].y, Y));
+        yValues[id] = new Vector3(-1, Mathf.Max(yValues[id].y, Y), perlin);
         points.Add(new Point(x, z));
     }
 

@@ -21,6 +21,7 @@ public class Manager : MonoBehaviour
                 inGame = true;
                 gameTime = 0;
                 SetFog(generation.dungeon.atmospheres[generation.atmoID].fog);
+                player.SetSnowDepth(generation.snowRayLength);
                 player.Weather(generation.dungeon.atmospheres[generation.atmoID].weather);
             }
         } else {
@@ -32,7 +33,7 @@ public class Manager : MonoBehaviour
     public void NextRound()
     {
         inGame = false;
-        generation.seed = (int)Random.Range(-2147483648, 2147483647f);
+        //generation.seed = (int)Random.Range(-2147483648, 2147483647f);
         generation.Routine();
     }
 

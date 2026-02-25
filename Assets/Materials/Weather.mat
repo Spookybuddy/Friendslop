@@ -1,18 +1,5 @@
 %YAML 1.1
 %TAG !u! tag:unity3d.com,2011:
---- !u!114 &-8494408075047270930
-MonoBehaviour:
-  m_ObjectHideFlags: 11
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 0}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: d0353a89b1f911e48b9e16bdc9f2e058, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  version: 7
 --- !u!21 &2100000
 Material:
   serializedVersion: 8
@@ -20,28 +7,24 @@ Material:
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_Name: Snowy
-  m_Shader: {fileID: -6465566751694194690, guid: 397d23ce4d4e9344280d7cc454416e2c,
+  m_Name: Weather
+  m_Shader: {fileID: -6465566751694194690, guid: 78588de29c40152489e965d93e7178b2,
     type: 3}
   m_Parent: {fileID: 0}
   m_ModifiedSerializedProperties: 0
-  m_ValidKeywords: []
+  m_ValidKeywords:
+  - _WEATHER_NONE
   m_InvalidKeywords: []
   m_LightmapFlags: 4
   m_EnableInstancingVariants: 0
   m_DoubleSidedGI: 0
-  m_CustomRenderQueue: 2000
-  stringTagMap:
-    RenderType: Opaque
+  m_CustomRenderQueue: -1
+  stringTagMap: {}
   disabledShaderPasses: []
   m_LockedProperties: 
   m_SavedProperties:
     serializedVersion: 3
     m_TexEnvs:
-    - _Base:
-        m_Texture: {fileID: 2800000, guid: 7967bcffbf5905c45aebf3670049032a, type: 3}
-        m_Scale: {x: 1, y: 1}
-        m_Offset: {x: 0, y: 0}
     - _BaseMap:
         m_Texture: {fileID: 0}
         m_Scale: {x: 1, y: 1}
@@ -70,16 +53,8 @@ Material:
         m_Texture: {fileID: 0}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
-    - _Mask:
-        m_Texture: {fileID: 0}
-        m_Scale: {x: 1, y: 1}
-        m_Offset: {x: 0, y: 0}
     - _MetallicGlossMap:
         m_Texture: {fileID: 0}
-        m_Scale: {x: 1, y: 1}
-        m_Offset: {x: 0, y: 0}
-    - _Normal:
-        m_Texture: {fileID: 2800000, guid: 16cd138e6fdc4944196ac9bcc83335c8, type: 3}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     - _OcclusionMap:
@@ -88,6 +63,10 @@ Material:
         m_Offset: {x: 0, y: 0}
     - _ParallaxMap:
         m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _SampleTexture2D_d65356534c5d4ec081460b1b82d4aa60_Texture_1_Texture2D:
+        m_Texture: {fileID: 2800000, guid: 4d53bfa1259ae804eac23d5380a15c26, type: 3}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     - _SpecGlossMap:
@@ -110,53 +89,66 @@ Material:
     m_Floats:
     - _AlphaClip: 0
     - _AlphaToMask: 0
+    - _Base_Distance: 0.01
     - _Blend: 0
     - _BlendModePreserveSpecular: 1
+    - _Boolean: 1
     - _BumpScale: 1
-    - _CastShadows: 1
     - _ClearCoatMask: 0
     - _ClearCoatSmoothness: 0
-    - _Clip_Threshold: 0
     - _Cull: 2
     - _Cutoff: 0.5
-    - _Deep_Snow: 1
+    - _Density: 1.217
     - _DetailAlbedoMapScale: 1
     - _DetailNormalMapScale: 1
+    - _Distance: 0.005
     - _DstBlend: 0
     - _DstBlendAlpha: 0
-    - _Dusting: 8
     - _EnvironmentReflections: 1
-    - _Float: 1
+    - _Fade: 5
+    - _Fall_Speed: 0.1
     - _GlossMapScale: 0
     - _Glossiness: 0
     - _GlossyReflections: 0
     - _Metallic: 0
     - _OcclusionStrength: 1
-    - _Parallax: 0.005
-    - _QueueControl: 0
+    - _Parallax: 1
     - _QueueOffset: 0
     - _ReceiveShadows: 1
+    - _Size: 8
     - _Smoothness: 0.5
     - _SmoothnessTextureChannel: 0
-    - _Snow_Color_Noise: 0.4
-    - _Snow_Depth: 1
-    - _Snow_Depth_Noise: 0.7
-    - _Snow_Max_Depth: 1.2
-    - _Snow_Noise: 0.5
-    - _Snow_Noise_Scale: 99
-    - _Snow_Normals: 0.03
     - _SpecularHighlights: 1
     - _SrcBlend: 1
     - _SrcBlendAlpha: 1
     - _Surface: 0
+    - _Use_Inputs: 0
+    - _Voronoi: 1
+    - _WEATHER: 0
     - _WorkflowMode: 1
-    - _ZTest: 4
+    - _XOffset: -17.493841
+    - _YOffset: 1.26
     - _ZWrite: 1
-    - _ZWriteControl: 0
     m_Colors:
     - _BaseColor: {r: 1, g: 1, b: 1, a: 1}
-    - _Color: {r: 1, g: 1, b: 1, a: 1}
+    - _Color: {r: 0, g: 0, b: 0, a: 1}
     - _EmissionColor: {r: 0, g: 0, b: 0, a: 1}
+    - _Fall_Speeds: {r: 0.1, g: 0, b: 0, a: 0}
+    - _Movement_Scalar: {r: 0.06, g: 1, b: 3, a: 0}
     - _SpecColor: {r: 0.19999996, g: 0.19999996, b: 0.19999996, a: 1}
-    - _Up_Direction: {r: 0, g: 0, b: 0, a: 0}
+    - _Speeds: {r: 0, g: 0, b: 0, a: 0}
+    - _UV_Stretch: {r: 4, g: 2.5, b: 0, a: 0}
   m_BuildTextureStacks: []
+--- !u!114 &7002307901491554647
+MonoBehaviour:
+  m_ObjectHideFlags: 11
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d0353a89b1f911e48b9e16bdc9f2e058, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  version: 7

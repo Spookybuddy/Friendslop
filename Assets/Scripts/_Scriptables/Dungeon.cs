@@ -51,11 +51,22 @@ public class Dungeon : ScriptableObject
     [Header("Map")]
     [Tooltip("The prefab for the out of bounds area.")]
     public GameObject chunkPrefab;
+    [Tooltip("Perlin noise scale applied to the out of bounds area.")]
+    public Vector3 perlinScale;
+    [Tooltip("Points away from dungeon bounds to slerp to max perlin noise applied.")]
+    [Range(1, 10)]
+    public byte slerpDistance = 3;
+    [Tooltip("The first point adjacent to dungeon bounds will be 0 before slerping.")]
+    public bool extra0Point = true;
+    [Tooltip("Decoration spawned in the out of bounds area.")]
+    public OutsideObjectSettings[] outsideObjects;
+    [Tooltip("Sum of the objects' weights. Can be calculated via the Context Menu (three dots top right)")]
+    public int objectWeightSum = 0;
     [Tooltip("The height for the map icons.")]
     public float mapHeight = 50;
     [Tooltip("Possible fog/weather settings to choose from in this dungeon.")]
     public WeatherSettings[] atmospheres;
-    [Tooltip("Sum of the tiles' weights. Can be calculated via the Context Menu (three dots top right)")]
+    [Tooltip("Sum of the weathers' weights. Can be calculated via the Context Menu (three dots top right)")]
     public int atmosWeightSum = 0;
 
     [ContextMenu("Calculate Weight Sum")]
@@ -63,8 +74,10 @@ public class Dungeon : ScriptableObject
     {
         tileWeightSum = 0;
         atmosWeightSum = 0;
+        objectWeightSum = 0;
         for (int i = 0; i < tileset.Length; i++) tileWeightSum += tileset[i].spawnWeight;
         for (int i = 0; i < atmospheres.Length; i++) atmosWeightSum += atmospheres[i].weight;
+        for (int i = 0; i < outsideObjects.Length; i++) objectWeightSum += outsideObjects[i].spawnWeight;
         if (minimumSurfaceArea > targetSurfaceArea) (targetSurfaceArea, minimumSurfaceArea) = (minimumSurfaceArea, targetSurfaceArea);
     }
 }
