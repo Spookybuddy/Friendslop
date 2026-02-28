@@ -50,6 +50,10 @@ public class PlayerController : MonoBehaviour
     public GameObject interactWith;
     public byte heldItemIndex;
     public Item[] inventory = new Item[5];
+    private bool dropping = false;
+    private float throwTimer = 0;
+    public float buildupRate = 2;
+    public float throwThreshold = 0.25f;
     public LayerMask interactLayers;
     public Transform interactIcon;
 
@@ -143,10 +147,14 @@ public class PlayerController : MonoBehaviour
             }
         }
 
+        //Throwing
+        if (dropping) throwTimer = Mathf.Clamp(throwTimer + Time.deltaTime * buildupRate, 0, buildupRate * 2);
+
         //Movement logic
         if (moving || wasLaunched) {
             float moveMulti = moveSpeed * Time.deltaTime;
             moveMulti *= (isSprinting ? sprintSpeed : isSneaking ? sneakSpeed : 1);
+            moveMulti *= (dropping ? 0.75f : 1);
 
             //Snow
             if (snowDepth > 0) {
@@ -237,7 +245,15 @@ public class PlayerController : MonoBehaviour
         if (inventory[heldItemIndex] != null) inventory[heldItemIndex].gameObject.SetActive(false);
         heldItemIndex = index;
         if (inventory[heldItemIndex] != null) inventory[heldItemIndex].gameObject.SetActive(true);
+        CancelDrop();
         return true;
+    }
+
+    //Changed item while charging drop resets drop time
+    private void CancelDrop()
+    {
+        dropping = false;
+        throwTimer = 0;
     }
 
     //Get/Set weather to/from manager
@@ -344,12 +360,14 @@ public class PlayerController : MonoBehaviour
     //Drop input
     public void Drop(InputAction.CallbackContext ctx)
     {
-        if (ctx.started) {
-            if (inventory[heldItemIndex] != null) {
-                inventory[heldItemIndex].Drop();
-                inventory[heldItemIndex] = null;
-                Debug.Log($"Drop item");
-            }
+        //If holding item, start building throw charge to be applied on release of button
+        if (ctx.started && inventory[heldItemIndex] != null) dropping = true;
+        if (ctx.canceled && dropping && inventory[heldItemIndex] != null) {
+            inventory[heldItemIndex].SnowData(snowDepth - playerColliderRadius);
+            if (throwTimer > throwThreshold) inventory[heldItemIndex].Throw(transform.forward, playerStrength * throwTimer * head.forward);
+            else inventory[heldItemIndex].Drop(transform.forward);
+            inventory[heldItemIndex] = null;
+            CancelDrop();
         }
     }
 

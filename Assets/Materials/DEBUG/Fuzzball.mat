@@ -7,13 +7,12 @@ Material:
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_Name: Weather
-  m_Shader: {fileID: -6465566751694194690, guid: 78588de29c40152489e965d93e7178b2,
+  m_Name: Fuzzball
+  m_Shader: {fileID: -6465566751694194690, guid: 4bf575f0f3acf734ab2ca7935141cb8e,
     type: 3}
   m_Parent: {fileID: 0}
   m_ModifiedSerializedProperties: 0
-  m_ValidKeywords:
-  - _WEATHER_NONE
+  m_ValidKeywords: []
   m_InvalidKeywords: []
   m_LightmapFlags: 4
   m_EnableInstancingVariants: 0
@@ -25,7 +24,15 @@ Material:
   m_SavedProperties:
     serializedVersion: 3
     m_TexEnvs:
+    - _Base:
+        m_Texture: {fileID: 2800000, guid: 6bd7cc125fbe63542904beeea9c7d132, type: 3}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
     - _BaseMap:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _Base_Texture:
         m_Texture: {fileID: 0}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
@@ -49,6 +56,18 @@ Material:
         m_Texture: {fileID: 0}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
+    - _Fur_Pattern:
+        m_Texture: {fileID: 2800000, guid: 6bd7cc125fbe63542904beeea9c7d132, type: 3}
+        m_Scale: {x: 0.5, y: 0.5}
+        m_Offset: {x: 0, y: 0}
+    - _Fur_Texture:
+        m_Texture: {fileID: 2800000, guid: 678d3c83d16337a4baef90ff131b8238, type: 3}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _Fuzz:
+        m_Texture: {fileID: 2800000, guid: 88327ca0e3bbc1643886153fbae5102e, type: 3}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
     - _MainTex:
         m_Texture: {fileID: 0}
         m_Scale: {x: 1, y: 1}
@@ -63,10 +82,6 @@ Material:
         m_Offset: {x: 0, y: 0}
     - _ParallaxMap:
         m_Texture: {fileID: 0}
-        m_Scale: {x: 1, y: 1}
-        m_Offset: {x: 0, y: 0}
-    - _SampleTexture2D_d65356534c5d4ec081460b1b82d4aa60_Texture_1_Texture2D:
-        m_Texture: {fileID: 2800000, guid: 4d53bfa1259ae804eac23d5380a15c26, type: 3}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     - _SpecGlossMap:
@@ -89,57 +104,56 @@ Material:
     m_Floats:
     - _AlphaClip: 0
     - _AlphaToMask: 0
-    - _Base_Distance: 0.01
     - _Blend: 0
     - _BlendModePreserveSpecular: 1
-    - _Boolean: 1
     - _BumpScale: 1
     - _ClearCoatMask: 0
     - _ClearCoatSmoothness: 0
+    - _Core_Offset: 0.25
     - _Cull: 2
     - _Cutoff: 0.5
-    - _Density: 1.217
     - _DetailAlbedoMapScale: 1
     - _DetailNormalMapScale: 1
-    - _Distance: 0.005
     - _DstBlend: 0
     - _DstBlendAlpha: 0
+    - _Edge: 1
     - _EnvironmentReflections: 1
-    - _Fade: 5
-    - _Fall_Speed: 0.1
+    - _Extrusion: 0.02
+    - _Fade: 1
+    - _Float: 1
+    - _Fur_Fade: 1
+    - _Fur_Length: 0.1
+    - _Fur_Steps: 1
     - _GlossMapScale: 0
     - _Glossiness: 0
     - _GlossyReflections: 0
+    - _Length: 0.01
     - _Metallic: 0
     - _OcclusionStrength: 1
-    - _Parallax: 1
+    - _Parallax: 0.005
+    - _QueueControl: 0
     - _QueueOffset: 0
     - _ReceiveShadows: 1
-    - _Size: 8
+    - _Scale: 0.25
     - _Smoothness: 0.5
     - _SmoothnessTextureChannel: 0
     - _SpecularHighlights: 1
     - _SrcBlend: 1
     - _SrcBlendAlpha: 1
     - _Surface: 0
-    - _Use_Inputs: 0
+    - _Thickness: 1
+    - _Threshold: 0.05
     - _Voronoi: 1
-    - _WEATHER: 0
     - _WorkflowMode: 1
-    - _XOffset: -409.91785
-    - _YOffset: 1.26
     - _ZWrite: 1
     m_Colors:
     - _BaseColor: {r: 1, g: 1, b: 1, a: 1}
-    - _Color: {r: 0, g: 0, b: 0, a: 1}
+    - _Color: {r: 1, g: 1, b: 1, a: 1}
     - _EmissionColor: {r: 0, g: 0, b: 0, a: 1}
-    - _Fall_Speeds: {r: 0.1, g: 0, b: 0, a: 0}
-    - _Movement_Scalar: {r: 0.06, g: 1, b: 3, a: 0}
     - _SpecColor: {r: 0.19999996, g: 0.19999996, b: 0.19999996, a: 1}
-    - _Speeds: {r: 0, g: 0, b: 0, a: 0}
-    - _UV_Stretch: {r: 4, g: 2.5, b: 0, a: 0}
+    - _Style: {r: 1, g: 0, b: 0, a: 0}
   m_BuildTextureStacks: []
---- !u!114 &7002307901491554647
+--- !u!114 &3223489791937524308
 MonoBehaviour:
   m_ObjectHideFlags: 11
   m_CorrespondingSourceObject: {fileID: 0}
