@@ -53,7 +53,7 @@ public class SnowySurface : MonoBehaviour
 
         vertexColors = new Color[mesh.vertices.Length];
         difference = ceilingHeight - distanceBlend;
-        snowMaxDepth = snowMat.GetFloat("_Snow_Max_Depth");
+        snowMaxDepth = MaxDepth();
         carveRate /= snowMaxDepth;
 
         //Get the raycast results
@@ -95,7 +95,7 @@ public class SnowySurface : MonoBehaviour
             dist = Mathf.Max(Mathf.Sign(dist), 0) * ((Mathf.Cos(Mathf.PI * dist) - 1) / -2);
         } else dist = 0;
         dist *= gray;
-        vertexColors[i] = new Color(dist, snowAlreadyFallen, snowAlreadyFallen);
+        vertexColors[i] = new Color(dist, dist * snowAlreadyFallen, dist * snowAlreadyFallen);
     }
 
     //Update vertices with given indices
@@ -155,5 +155,16 @@ public class SnowySurface : MonoBehaviour
     {
         A = a;
         B = b;
+    }
+
+    //Get max depth
+    public float MaxDepth()
+    {
+        try {
+            return snowMat.GetFloat("_Snow_Max_Depth");
+        } catch {
+            Debug.LogError($"Snow Material {snowMat.name} on {name} is not the correct shader!");
+            return -1;
+        }
     }
 }

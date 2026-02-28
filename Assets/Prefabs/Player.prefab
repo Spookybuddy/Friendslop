@@ -3850,7 +3850,7 @@ ParticleSystem:
     radiusScale: 1
     collidesWith:
       serializedVersion: 2
-      m_Bits: 713
+      m_Bits: 715
     maxCollisionShapes: 256
     quality: 0
     voxelSize: 0.5
@@ -8774,7 +8774,7 @@ ParticleSystem:
     radiusScale: 1
     collidesWith:
       serializedVersion: 2
-      m_Bits: 713
+      m_Bits: 715
     maxCollisionShapes: 256
     quality: 0
     voxelSize: 0.5
@@ -10681,7 +10681,7 @@ ParticleSystem:
     rateOverTime:
       serializedVersion: 2
       minMaxState: 0
-      scalar: 6000
+      scalar: 1500
       minScalar: 10
       maxCurve:
         serializedVersion: 2
@@ -13604,7 +13604,7 @@ ParticleSystem:
     radiusScale: 1
     collidesWith:
       serializedVersion: 2
-      m_Bits: 713
+      m_Bits: 715
     maxCollisionShapes: 256
     quality: 0
     voxelSize: 0.5
@@ -18575,7 +18575,7 @@ ParticleSystem:
     radiusScale: 1
     collidesWith:
       serializedVersion: 2
-      m_Bits: 713
+      m_Bits: 715
     maxCollisionShapes: 256
     quality: 0
     voxelSize: 0.5
@@ -38019,7 +38019,7 @@ ParticleSystem:
     radiusScale: 1
     collidesWith:
       serializedVersion: 2
-      m_Bits: 713
+      m_Bits: 715
     maxCollisionShapes: 256
     quality: 0
     voxelSize: 0.5
@@ -42905,7 +42905,7 @@ ParticleSystem:
     radiusScale: 1
     collidesWith:
       serializedVersion: 2
-      m_Bits: 713
+      m_Bits: 715
     maxCollisionShapes: 256
     quality: 0
     voxelSize: 0.5
@@ -47825,7 +47825,7 @@ ParticleSystem:
     radiusScale: 1
     collidesWith:
       serializedVersion: 2
-      m_Bits: 713
+      m_Bits: 715
     maxCollisionShapes: 256
     quality: 0
     voxelSize: 0.5
@@ -54783,7 +54783,7 @@ ParticleSystem:
     rateOverTime:
       serializedVersion: 2
       minMaxState: 0
-      scalar: 300
+      scalar: 150
       minScalar: 10
       maxCurve:
         serializedVersion: 2
@@ -57706,7 +57706,7 @@ ParticleSystem:
     radiusScale: 1
     collidesWith:
       serializedVersion: 2
-      m_Bits: 713
+      m_Bits: 715
     maxCollisionShapes: 256
     quality: 0
     voxelSize: 0.5
@@ -58817,9 +58817,9 @@ GameObject:
   - component: {fileID: 623091413801341662}
   - component: {fileID: 2279840255153069186}
   - component: {fileID: 6238402899002958356}
-  - component: {fileID: 1229329063033265906}
   - component: {fileID: 4633490357253605689}
   - component: {fileID: 2833512162208731937}
+  - component: {fileID: 1229329063033265906}
   m_Layer: 3
   m_Name: PlayerCharacter
   m_TagString: Untagged
@@ -58895,29 +58895,6 @@ MeshRenderer:
   m_SortingLayer: 0
   m_SortingOrder: 0
   m_AdditionalVertexStreams: {fileID: 0}
---- !u!136 &1229329063033265906
-CapsuleCollider:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 8743611042059989016}
-  m_Material: {fileID: 0}
-  m_IncludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_ExcludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_LayerOverridePriority: 0
-  m_IsTrigger: 0
-  m_ProvidesContacts: 0
-  m_Enabled: 1
-  serializedVersion: 2
-  m_Radius: 0.5
-  m_Height: 2
-  m_Direction: 1
-  m_Center: {x: 0, y: 0, z: 0}
 --- !u!114 &4633490357253605689
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -58936,11 +58913,12 @@ MonoBehaviour:
   - {fileID: 2556213512554482380}
   - {fileID: 7777947359671335462}
   - {fileID: 4137025759585091330}
+  weathersMaterial: {fileID: 2100000, guid: 19b370d8635c98d49abb326b3b3d847d, type: 2}
   paused: 0
   lastSurface: Default
   groundLayers:
     serializedVersion: 2
-    m_Bits: 657
+    m_Bits: 145
   gravityCurve:
     serializedVersion: 2
     m_Curve:
@@ -58965,6 +58943,7 @@ MonoBehaviour:
     m_PreInfinity: 2
     m_PostInfinity: 2
     m_RotationOrder: 4
+  snowDepth: 0
   holdPosition: {fileID: 5841714551576476878}
   playerStrength: 10
   selectionShellObject: {fileID: 6082201592863180327}
@@ -58977,6 +58956,9 @@ MonoBehaviour:
   - {fileID: 0}
   - {fileID: 0}
   - {fileID: 0}
+  throwTimer: 0
+  buildupRate: 2
+  throwThreshold: 0.2
   interactLayers:
     serializedVersion: 2
     m_Bits: 128
@@ -59196,3 +59178,26 @@ MonoBehaviour:
   m_DefaultActionMap: Player
   m_SplitScreenIndex: -1
   m_Camera: {fileID: 0}
+--- !u!136 &1229329063033265906
+CapsuleCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8743611042059989016}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 0
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 2
+  m_Radius: 0.5
+  m_Height: 2
+  m_Direction: 1
+  m_Center: {x: 0, y: 0, z: 0}

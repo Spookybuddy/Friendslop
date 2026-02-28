@@ -7,6 +7,8 @@ public class PlayerController : MonoBehaviour
     public Transform head;
     private const float HeadHeight = 0.625f;
     public ParticleSystem[] weathersList;
+    public Material weathersMaterial;
+    private float weatherOffset = 0;
 
     [Header("Controls")]
     public bool paused;
@@ -37,6 +39,8 @@ public class PlayerController : MonoBehaviour
     public LayerMask groundLayers;
     private const float GravitationalForce = 9.9f;
     public AnimationCurve gravityCurve;
+    [HideInInspector]
+    public float snowDepth = 0;
 
     [Header("Inventory")]
     public Transform holdPosition;
@@ -46,6 +50,10 @@ public class PlayerController : MonoBehaviour
     public GameObject interactWith;
     public byte heldItemIndex;
     public Item[] inventory = new Item[5];
+    private bool dropping = false;
+    private float throwTimer = 0;
+    public float buildupRate = 2;
+    public float throwThreshold = 0.25f;
     public LayerMask interactLayers;
     public Transform interactIcon;
 
@@ -139,21 +147,31 @@ public class PlayerController : MonoBehaviour
             }
         }
 
+        //Throwing
+        if (dropping) throwTimer = Mathf.Clamp(throwTimer + Time.deltaTime * buildupRate, 0, buildupRate * 2);
+
         //Movement logic
         if (moving || wasLaunched) {
             float moveMulti = moveSpeed * Time.deltaTime;
             moveMulti *= (isSprinting ? sprintSpeed : isSneaking ? sneakSpeed : 1);
+            moveMulti *= (dropping ? 0.75f : 1);
 
             //Snow
-            if (Physics.Raycast(transform.position, Vector3.down, out RaycastHit snow, 1.1f, 512)) {
-                if (snow.collider.gameObject.TryGetComponent<SnowySurface>(out SnowySurface script)) {
-                    if (script.snowMaxDepth > snow.distance) moveMulti *= Mathf.Clamp(1 - script.Carve(snow.triangleIndex * 3, snow.barycentricCoordinate), 0.6f, 1);
+            if (snowDepth > 0) {
+                if (Physics.Raycast(transform.position, Vector3.down, out RaycastHit snow, snowDepth, 512)) {
+                    if (snow.collider.gameObject.TryGetComponent<SnowySurface>(out SnowySurface script)) {
+                        moveMulti *= Mathf.Clamp(1 - script.Carve(snow.triangleIndex * 3, snow.barycentricCoordinate), 0.5f, 0.9f) + 0.1f;
+                    }
                 }
             }
 
             movementDir = transform.forward * (movementInput.y * moveMulti) + transform.right * (movementInput.x * moveMulti);
             if (wasLaunched) movementDir = launchVector;
-            transform.position += CollisionCheck(movementDir, wasLaunched);
+            movementDir = CollisionCheck(movementDir, wasLaunched);
+            //transform.position += CollisionCheck(movementDir, wasLaunched);
+            float dot = Vector3.Dot(transform.right, movementDir.normalized);
+            if (dot > 0.1f || dot < -0.1f) ScrollWeather(dot * movementDir.magnitude * moveSpeed * 2.5f);
+            transform.position += movementDir;
         }
 
         //Crouch head move
@@ -227,13 +245,38 @@ public class PlayerController : MonoBehaviour
         if (inventory[heldItemIndex] != null) inventory[heldItemIndex].gameObject.SetActive(false);
         heldItemIndex = index;
         if (inventory[heldItemIndex] != null) inventory[heldItemIndex].gameObject.SetActive(true);
+        CancelDrop();
         return true;
+    }
+
+    //Changed item while charging drop resets drop time
+    private void CancelDrop()
+    {
+        dropping = false;
+        throwTimer = 0;
     }
 
     //Get/Set weather to/from manager
     public void Weather(Weathers weather)
     {
-        for (byte b = 1; b <= weathersList.Length; b++) weathersList[b - 1].gameObject.SetActive(b == (int)weather);
+        for (byte b = 1; b <= weathersList.Length; b++) weathersList[b - 1].gameObject.SetActive(b == (byte)weather);
+        string nam = $"_WEATHER_{weather.ToString().ToUpper()}";
+        //Debug.Log(nam);
+        weathersMaterial.EnableKeyword(nam);
+    }
+
+    //Scroll the weather shader to give the illusion of it being in world space
+    private void ScrollWeather(float add)
+    {
+        weatherOffset += add;
+        weathersMaterial.SetFloat("_XOffset", weatherOffset);
+    }
+
+    //Update snow check length based on chunks' max depth
+    public void SetSnowDepth(float depth)
+    {
+        if (depth <= 0) snowDepth = 0;
+        else snowDepth = depth + 0.1f + playerColliderRadius;
     }
 
     #region Controls
@@ -248,7 +291,9 @@ public class PlayerController : MonoBehaviour
     //Look rotate body and head
     public void CameraMovement(InputAction.CallbackContext ctx)
     {
-        transform.Rotate(ctx.ReadValue<Vector2>().x * lookSpeed * Vector3.up);
+        float x = ctx.ReadValue<Vector2>().x * lookSpeed;
+        transform.Rotate(x * Vector3.up);
+        ScrollWeather(x);
         head.localEulerAngles = new Vector3(head.localEulerAngles.x - ctx.ReadValue<Vector2>().y * lookSpeed, 0, 0);
     }
 
@@ -315,12 +360,14 @@ public class PlayerController : MonoBehaviour
     //Drop input
     public void Drop(InputAction.CallbackContext ctx)
     {
-        if (ctx.started) {
-            if (inventory[heldItemIndex] != null) {
-                inventory[heldItemIndex].Drop();
-                inventory[heldItemIndex] = null;
-                Debug.Log($"Drop item");
-            }
+        //If holding item, start building throw charge to be applied on release of button
+        if (ctx.started && inventory[heldItemIndex] != null) dropping = true;
+        if (ctx.canceled && dropping && inventory[heldItemIndex] != null) {
+            inventory[heldItemIndex].SnowData(snowDepth - playerColliderRadius);
+            if (throwTimer > throwThreshold) inventory[heldItemIndex].Throw(transform.forward, playerStrength * throwTimer * head.forward);
+            else inventory[heldItemIndex].Drop(transform.forward);
+            inventory[heldItemIndex] = null;
+            CancelDrop();
         }
     }
 

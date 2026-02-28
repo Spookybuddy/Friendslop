@@ -124,10 +124,10 @@ MonoBehaviour:
   carveRate: 2.3
   ceilingHeight: 20
   sphereRadius: 0
-  distanceBlend: 0
+  distanceBlend: 5
   layerMask:
     serializedVersion: 2
-    m_Bits: 0
+    m_Bits: 2
   snowfallRate: 0
   snowAlreadyFallen: 1
   snowMaxDepth: 0

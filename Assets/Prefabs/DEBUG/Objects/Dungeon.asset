@@ -26,7 +26,7 @@ MonoBehaviour:
   - tile: {fileID: 11400000, guid: 0c6efbaa436f07c43840332bd2f1592f, type: 2}
     spawnWeight: 16
   tilePlacementAttempts: 5
-  tileWeightSum: 5643
+  tileWeightSum: 99
   targetSurfaceArea: 3093
   minimumSurfaceArea: 2700
   minRotationVariation: 30
@@ -35,15 +35,33 @@ MonoBehaviour:
     type: 3}
   quality: 18
   pathWidth: 2
+  pathHeight: 5
   moreConnections: 1
   selfConnections: 0
   distanceMultiplier: 3
   dotLimit: -0.7
   chunkPrefab: {fileID: 4943488530812381464, guid: 6bf29aef116d38040be7d101f3416a8e,
     type: 3}
+  perlinScale: {x: 3, y: 1, z: 3}
+  slerpDistance: 3
+  extra0Point: 0
+  outsideObjects: []
+  objectWeightSum: 0
   mapHeight: 50
   atmospheres:
   - weather: 0
     fog: {fileID: 11400000, guid: e558bfae6b322fc468864162710edf04, type: 2}
     weight: 5
-  atmosWeightSum: 286
+  - weather: 1
+    fog: {fileID: 11400000, guid: e558bfae6b322fc468864162710edf04, type: 2}
+    weight: 5
+  - weather: 2
+    fog: {fileID: 11400000, guid: e558bfae6b322fc468864162710edf04, type: 2}
+    weight: 5
+  - weather: 3
+    fog: {fileID: 11400000, guid: e558bfae6b322fc468864162710edf04, type: 2}
+    weight: 5
+  - weather: 4
+    fog: {fileID: 11400000, guid: e558bfae6b322fc468864162710edf04, type: 2}
+    weight: 5
+  atmosWeightSum: 25

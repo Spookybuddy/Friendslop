@@ -20,7 +20,7 @@ public struct WeatherSettings
     [Tooltip("Fog settings that override the default when this weather occurs")]
     public FogSettings fog;
     [Tooltip("The weighted odds of this weather occuring")]
-    [Range(0, 255)]
+    [Range(1, 255)]
     public byte weight;
 }
 
