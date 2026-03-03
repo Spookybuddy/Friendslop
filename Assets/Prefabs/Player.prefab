@@ -58956,7 +58956,6 @@ MonoBehaviour:
   - {fileID: 0}
   - {fileID: 0}
   - {fileID: 0}
-  throwTimer: 0
   buildupRate: 2
   throwThreshold: 0.2
   interactLayers:

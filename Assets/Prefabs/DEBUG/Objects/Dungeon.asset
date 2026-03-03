@@ -44,7 +44,7 @@ MonoBehaviour:
     type: 3}
   perlinScale: {x: 3, y: 1, z: 3}
   slerpDistance: 3
-  extra0Point: 0
+  extra0Point: 1
   outsideObjects: []
   objectWeightSum: 0
   mapHeight: 50

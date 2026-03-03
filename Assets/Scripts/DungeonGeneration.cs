@@ -21,28 +21,28 @@ public struct MeshChunk
     public Vector3[] vertices;
     public Vector2[] uvs;
     public int[] triangles;
-    public Color[] colors;
+    public Vector3[] normals;
     public Mesh chunk;
     public MeshChunk(int scale, int tris)
     {
         vertices = new Vector3[scale];
+        normals = new Vector3[scale];
         uvs = new Vector2[scale];
-        colors = new Color[scale];
         triangles = new int[tris];
         chunk = new Mesh();
     }
-    public void Verts(int i, int x, int z, Vector3 pos)
+    public readonly void Verts(int i, int x, int z, Vector3 pos, Vector3 norm)
     {
         vertices[i] = pos;
         uvs[i] = new Vector2(x, z);
-        colors[i] = Color.white;
+        normals[i] = norm;
     }
-    public void Create() {
+    public readonly void Create() {
         chunk.vertices = vertices;
         chunk.SetUVs(0, uvs);
-        chunk.SetColors(colors);
         chunk.triangles = triangles;
-        chunk.RecalculateNormals();
+        chunk.normals = normals;
+        //chunk.RecalculateNormals();
         chunk.Optimize();
     }
 }
@@ -76,18 +76,10 @@ public class DungeonGeneration : MonoBehaviour
     private int[] setChunkTris;
     private readonly List<Point> points = new List<Point>();
     private Vector3[] yValues;
-    private readonly short[] Primes = new short[] {
-          2,   3,   5,   7,  11,  13,  17,  19,  23,  29,  31,  37,  41,  43,  47,  53,  59,  61,  67,  71,  73,  79,  83,  89,  97, 101, 103, 107, 109, 113, 127, 131, 137, 139, 149,
-        151, 157, 163, 167, 173, 179, 181, 191, 193, 197, 199, 211, 223, 227, 229, 233, 239, 241, 251, 257, 263, 269, 271, 277, 281, 283, 293, 307, 311, 313, 317, 331, 337, 347, 349,
-        353, 359, 367, 373, 379, 383, 389, 397, 401, 409, 419, 421, 431, 433, 439, 443, 449, 457, 461, 463, 467, 479, 487, 491, 499, 503, 509, 521, 523, 541, 547, 557, 563, 569, 571,
-        577, 587, 593, 599, 601, 607, 613, 617, 619, 631, 641, 643, 647, 653, 659, 661, 673, 677, 683, 691, 701, 709, 719, 727, 733, 739, 743, 751, 757, 761, 769, 773, 787, 797, 809,
-        811, 821, 823, 827, 829, 839, 853, 857, 859, 863, 877, 881, 883, 887, 907, 911, 919, 929, 937, 941, 947, 953, 967, 971, 977, 983, 991, 997
-    };
-    //1009, 1013, 1019, 1021, 1031, 1033, 1039, 1049, 1051, 1061, 1063, 1069, 1087, 1091, 1093, 1097, 1103, 1109, 1117, 1123, 1129, 1151, 1153, 1163, 1171, 1181, 1187, 1193, 1201, 1213,
-    //1217, 1223, 1229, 1231, 1237, 1249, 1259, 1277, 1279, 1283, 1289, 1291, 1297, 1301, 1303, 1307, 1319, 1321, 1327, 1361, 1367, 1373, 1381, 1399, 1409, 1423, 1427, 1429, 1433, 1439,
-    //1447, 1451, 1453, 1459, 1471, 1481, 1483, 1487, 1489, 1493, 1499, 1511, 1523, 1531, 1543, 1549, 1553, 1559, 1567, 1571, 1579, 1583, 1597, 1601, 1607, 1609, 1613, 1619, 1621, 1627,
-    //1637, 1657, 1663, 1667, 1669, 1693, 1697, 1699, 1709, 1721, 1723, 1733, 1741, 1747, 1753, 1759, 1777, 1783, 1787, 1789, 1801, 1811, 1823, 1831, 1847, 1861, 1867, 1871, 1873, 1877,
-    //1879, 1889, 1901, 1907, 1913, 1931, 1933, 1949, 1951, 1973, 1979, 1987, 1993, 1997, 1999
+    private Vector3[] normals;
+    private const byte SIZE = 20;
+    private const byte SIZE_ = 21;
+    private const byte HALF = 10;
     [Header("Stats")]
     private Transform dungeonTileParent;
     public uint currentSize;
@@ -390,83 +382,44 @@ public class DungeonGeneration : MonoBehaviour
             //Reset rng to ensure its the same just in case
             rng = new System.Random(seed);
             Random.InitState(seed);
-            //Might want to scrap this in favor of preset chunk sizes simply filling in the area (~20 verts, doubling the verts to 1/m instead of 0.5/m)
+
             //Take the arbitrary dimensions of the navmesh and create chunked terrain to fill it in
-            extents = new Vector3(Mathf.Ceil(extents.x), Mathf.Ceil(extents.y), Mathf.Ceil(extents.z));
+            extents = new Vector3(Mathf.Ceil(extents.x) * 2, Mathf.Ceil(extents.y), Mathf.Ceil(extents.z) * 2);
+            extents = new Vector3(extents.x + (SIZE - 1) - extents.x % SIZE, extents.y, extents.z + (SIZE - 1) - extents.z % SIZE);
+            center += new Vector3(extents.x / 2, 0, extents.z / 2);
             int X = (int)extents.x, Z = (int)extents.z;
-            int X_ = X + 1, Z_ = Z + 1;
-            int A = 1, B = 1;
-            bool setX = false, setZ = false;
-            byte px = 0, pz = 0;
-            //Exceeds the listed primes, returns set value with precalculated values of reasonable size
-            if (X_ > 997) {
-                X = 1009;
-                X_ = 1010;
-                A = 101;
-                setX = true;
-            }
-            if (Z_ > 997) {
-                Z = 1009;
-                Z_ = 1010;
-                B = 101;
-                setZ = true;
-            }
-            //Get common divisor, adjusting if the value is a prime
-            while (!(setX && setZ)) {
-                if (!setX) {
-                    if (Primes[px] > X_) setX = true;
-                    if (Primes[px] == X_) {
-                        X_++;
-                        X++;
-                        px = 0;
-                    }
-                    if (X_ % Primes[px] == 0) A = Primes[px];
-                    px++;
-                }
-                if (!setZ) {
-                    if (Primes[pz] > Z_) setZ = true;
-                    if (Primes[pz] == Z_) {
-                        Z_++;
-                        Z++;
-                        pz = 0;
-                    }
-                    if (Z_ % Primes[pz] == 0) B = Primes[pz];
-                    pz++;
-                }
-            }
-            A = Mathf.Max(A, X_ / A);
-            B = Mathf.Max(B, Z_ / B);
-            int A_ = A + 1, B_ = B + 1, X__ = X_ + 1, Z__ = Z_ + 1;
-            int D = Z_ / B;
-            setChunkTris = new int[6 * A * B];
+            int X_ = X + 1, X__ = X + 2, Z_ = Z + 1, Z__ = Z + 2;
+            int W = Z_ / SIZE;
+            setChunkTris = new int[6 * SIZE * SIZE];
 
             //All chunks share tri patterns, so only one array is needed
-            for (int a = 0; a < A; a++) {
-                for (int b = 0; b < B; b++) {
-                    int index = a * B + b;
+            for (int a = 0; a < SIZE; a++) {
+                for (int b = 0; b < SIZE; b++) {
+                    int index = a * SIZE + b;
                     setChunkTris[6 * index] = index + a;
                     setChunkTris[6 * index + 1] = index + a + 1;
-                    setChunkTris[6 * index + 2] = index + a + B + 1;
+                    setChunkTris[6 * index + 2] = index + a + SIZE + 1;
                     setChunkTris[6 * index + 3] = index + a + 1;
-                    setChunkTris[6 * index + 4] = index + a + B + 2;
-                    setChunkTris[6 * index + 5] = index + a + B + 1;
+                    setChunkTris[6 * index + 4] = index + a + SIZE + 2;
+                    setChunkTris[6 * index + 5] = index + a + SIZE + 1;
                 }
             }
 
             //Chunks
-            chunkData = new MeshChunk[X_ / A * Z_ / B];
+            chunkData = new MeshChunk[X_ / SIZE * Z_ / SIZE];
             chunks = new GameObject[chunkData.Length];
             for (int i = 0; i < chunkData.Length; i++) {
-                chunkData[i] = new MeshChunk(A_ * B_, A * B * 6);
+                chunkData[i] = new MeshChunk(SIZE_ * SIZE_, SIZE * SIZE * 6);
                 chunkData[i].triangles = setChunkTris;
             }
 
             //Set heights with an extra row for the edges
             yValues = new Vector3[X__ * Z__];
+            normals = new Vector3[yValues.Length];
             for (int x = 0; x < X__; x++) {
                 for (int z = 0; z < Z__; z++) {
                     int index = x * Z__ + z;
-                    Vector3 pos = new Vector3(2 * x - X, -extents.y, 2 * z - Z) + center;
+                    Vector3 pos = new Vector3(x - X, -extents.y, z - Z) + center;
                     pos = terrain.InverseTransformPoint(HitCheck(terrain.TransformPoint(pos), extents.y * 2));
                     if (pos.y > center.y - extents.y) {
                         points.Add(new Point(x, z));
@@ -505,19 +458,51 @@ public class DungeonGeneration : MonoBehaviour
                 }
             }
 
+            //Calculate normals for whole area
+            for (int x = 0; x < X__; x++) {
+                for (int z = 0; z < Z__; z++) {
+                    int index = x * Z__ + z;
+                    bool posX = x + 1 < X_;
+                    bool negX = x > 0;
+                    bool posZ = (z + 1) % Z__ != 0;
+                    bool negZ = z > 0;
+                    float Y = yValues[index].y;
+                    //Get normals from the 6 triangles that share this vertex
+                    if (negX) {
+                        Vector3 nx = new Vector3(-1, yValues[index - Z__].y, 0);
+                        if (negZ) normals[index] -= GatherNormals(Y, nx, new Vector3(0, yValues[index - 1].y, -1));
+                        if (posZ) {
+                            Vector3 shared = new Vector3(-1, yValues[index - Z__ + 1].y, 1);
+                            normals[index] -= GatherNormals(Y, nx, shared);
+                            normals[index] -= GatherNormals(Y, new Vector3(0, yValues[index + 1].y, 1), shared);
+                        }
+                    }
+                    if (posX) {
+                        Vector3 px = new Vector3(1, yValues[index + Z__].y, 0);
+                        if (negZ) {
+                            Vector3 shared = new Vector3(1, yValues[index + Z__ - 1].y, -1);
+                            normals[index] -= GatherNormals(Y, new Vector3(0, yValues[index - 1].y, -1), shared);
+                            normals[index] -= GatherNormals(Y, px, shared);
+                        }
+                        if (posZ) normals[index] -= GatherNormals(Y, px, new Vector3(0, yValues[index + 1].y, 1));
+                    }
+                    normals[index].Normalize();
+                }
+            }
+
             //Set chunk Ys
             for (int x = 0; x < X_; x++) {
                 for (int z = 0; z < Z_; z++) {
-                    int index = (x / A) * D + (z / B);
+                    int index = (x / SIZE) * W + (z / SIZE);
                     int id = x * Z__ + z;
-                    float ax = 2 * (x % A) - A_;
-                    float bz = 2 * (z % B) - B_;
-                    if ((x + 1) % A == 0 && x > 0) {
-                        chunkData[index].Verts(A * B_ + z % B, x + 1, z, new Vector3(ax + 2, yValues[id + Z__].y, bz));
-                        if ((z + 1) % B == 0 && z > 0) chunkData[index].Verts(A * B_ + B, x + 1, z + 1, new Vector3(ax + 2, yValues[id + Z__ + 1].y, bz + 2));
+                    float ax = (x % SIZE) - HALF;
+                    float bz = (z % SIZE) - HALF;
+                    if ((x + 1) % SIZE == 0 && x > 0) {
+                        chunkData[index].Verts(SIZE * SIZE_ + z % SIZE, x + 1, z, new Vector3(ax + 1, yValues[id + Z__].y, bz), normals[id + Z__]);
+                        if ((z + 1) % SIZE == 0 && z > 0) chunkData[index].Verts(SIZE * SIZE_ + SIZE, x + 1, z + 1, new Vector3(ax + 1, yValues[id + Z__ + 1].y, bz + 1), normals[id + Z__ + 1]);
                     }
-                    if ((z + 1) % B == 0 && z > 0) chunkData[index].Verts(x % A * B_ + B, x, z + 1, new Vector3(ax, yValues[id + 1].y, bz + 2));
-                    chunkData[index].Verts(x % A * B_ + z % B, x, z, new Vector3(ax, yValues[id].y, bz));
+                    if ((z + 1) % SIZE == 0 && z > 0) chunkData[index].Verts(x % SIZE * SIZE_ + SIZE, x, z + 1, new Vector3(ax, yValues[id + 1].y, bz + 1), normals[id + 1]);
+                    chunkData[index].Verts(x % SIZE * SIZE_ + z % SIZE, x, z, new Vector3(ax, yValues[id].y, bz), normals[id]);
                 }
             }
             /*
@@ -565,14 +550,15 @@ public class DungeonGeneration : MonoBehaviour
                     chunkData[i].Create();
                     mf.sharedMesh = chunkData[i].chunk;
                     g.name = $"Chunk #{i + 1}";
+                    g.transform.localPosition = new Vector3(SIZE * (i / W) - X + HALF + center.x, 0, SIZE * (i % W) - Z + HALF + center.z);
+                    chunks[i] = g;
+                    if (g.TryGetComponent<MeshCollider>(out MeshCollider mc)) mc.sharedMesh = chunkData[i].chunk;
+                    if (g.TryGetComponent<SnowySurface>(out SnowySurface ss)) {
+                        snowRayLength = Mathf.Max(snowRayLength, ss.MaxDepth());
+                        ss.TileDimensions(SIZE_);
+                    }
+                    yield return new WaitForEndOfFrame();
                 }
-                if (g.TryGetComponent<MeshCollider>(out MeshCollider mc)) mc.sharedMesh = chunkData[i].chunk;
-                if (g.TryGetComponent<SnowySurface>(out SnowySurface ss)) {
-                    snowRayLength = Mathf.Max(snowRayLength, ss.MaxDepth());
-                    ss.TileDimensions(A_, B_);
-                }
-                g.transform.localPosition = new Vector3(2 * A * (i / D) - X + A_ + center.x, 0, 2 * B * (i % D) - Z + B_ + center.z);
-                chunks[i] = g;
             }
 
             yield return new WaitForFixedUpdate();
@@ -646,6 +632,14 @@ public class DungeonGeneration : MonoBehaviour
     {
         if (Physics.Raycast(pos, Vector3.up, out RaycastHit hit, length, 256)) return hit.point - Vector3.up * 0.02f;
         else return pos;
+    }
+
+    //Seamless normals
+    private Vector3 GatherNormals(float Y, Vector3 A, Vector3 B)
+    {
+        A -= Vector3.up * Y;
+        B -= Vector3.up * Y;
+        return Vector3.Cross(A, B).normalized;
     }
 
     //Checks if point has already been updated, adding to list if not
