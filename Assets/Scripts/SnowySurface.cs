@@ -30,13 +30,106 @@ public class SnowySurface : MonoBehaviour
     private Mesh mesh = null;
     private Color[] vertexColors;
     private RaycastHit ceil;
-    private int A;
-    private int B;
+    private int dimensions;
 
     //Start: Gather covering data into R
     //Buildup: Current value is G & B
 
     void Start()
+    {
+        //Init();
+    }
+
+    private void Update()
+    {
+        if (mesh == null) return;
+        if (snowfallRate <= 0) return;
+        for (uint i = 0; i < vertexColors.Length; i++) {
+            if (vertexColors[i].r <= 0) continue;
+            Color rgb = vertexColors[i];
+            vertexColors[i].g = Mathf.Clamp01(rgb.g + rgb.r * snowfallRate * Time.deltaTime);
+            vertexColors[i].b = Mathf.Clamp01(rgb.b + rgb.r * snowfallRate * Time.deltaTime);
+        }
+        mesh.SetColors(vertexColors);
+    }
+
+    //When raycast hits
+    private Color Hit(float dist, float gray = 1)
+    {
+        if (distanceBlend > 0) {
+            dist = (dist - distanceBlend) / difference;
+            dist = Mathf.Max(Mathf.Sign(dist), 0) * ((Mathf.Cos(Mathf.PI * dist) - 1) / -2);
+        } else dist = 0;
+        dist *= gray;
+        return new Color(dist, dist * snowAlreadyFallen, dist * snowAlreadyFallen);
+    }
+
+    //Update vertices with given indices
+    public float Carve(int index, Vector3 bary)
+    {
+        float ret = 0;
+        for (byte i = 0; i < 3; i++) {
+            int x = mesh.triangles[index + i];
+            float snow = carveRate * Time.deltaTime * bary[i];
+            Color rgb = vertexColors[x];
+            rgb.g = Mathf.Clamp01(vertexColors[x].g - snow);
+            rgb.b = Mathf.Clamp01(vertexColors[x].b - snow);
+            vertexColors[x] = rgb;
+            ret += rgb.g;
+            Edges(x, rgb);
+        }
+        mesh.SetColors(vertexColors);
+        return ret / 3;
+    }
+
+    //Raycasts edge vertices to update adjacent chunks
+    private void Edges(int id, Color rgb)
+    {
+        //Check for edges to update adjecent chunks
+        Vector3 world = transform.TransformPoint(mesh.vertices[id]);
+        Vector3[] rays = new Vector3[4] { world + new Vector3(.05f, 0.5f, .05f), world + new Vector3(-.05f, 0.5f, .05f), world + new Vector3(-.05f, 0.5f, -.05f), world + new Vector3(.05f, 0.5f, -.05f) };
+        if ((int)(mesh.vertices[id].x + dimensions / 2) % dimensions == 0) EdgeRayCheck(rays, rgb);
+        if ((int)(mesh.vertices[id].x + dimensions / 2 + 1) % dimensions == 0) EdgeRayCheck(rays, rgb);
+        if ((int)(mesh.vertices[id].z + dimensions / 2) % dimensions == 0) EdgeRayCheck(rays, rgb);
+        if ((int)(mesh.vertices[id].z + dimensions / 2 + 1) % dimensions == 0) EdgeRayCheck(rays, rgb);
+    }
+
+    //Rays around the edge vertices to check for adjacent chunks
+    private void EdgeRayCheck(Vector3[] rays, Color rgb)
+    {
+        for (byte b = 0; b < 4; b++) {
+            if (Physics.Raycast(rays[b], Vector3.down, out RaycastHit hit, 1, 512)) {
+                if (hit.collider.gameObject.Equals(gameObject) || hit.collider.transform.Equals(transform)) continue;
+                if (hit.collider.TryGetComponent<SnowySurface>(out SnowySurface ss)) { ss.UpdateFromAnother(hit.triangleIndex * 3, hit.barycentricCoordinate, rgb); Debug.DrawRay(rays[b], Vector3.up, Color.green, 10); }
+            }
+        }
+    }
+
+    //Find matching vertex and update it's colors
+    public void UpdateFromAnother(int index, Vector3 bary, Color rgb)
+    {
+        if (mesh == null) return;
+        byte b = 0;
+        float max = 0;
+        for (byte a = 0; a < 3; a++) {
+            if (bary[a] > max) {
+                max = bary[a];
+                b = a;
+            }
+        }
+        vertexColors[mesh.triangles[index + b]] = rgb;
+        mesh.SetColors(vertexColors);
+    }
+
+    //Pass tile dimensions & setup from generation
+    public void TileDimensions(int a)
+    {
+        dimensions = a;
+        Init();
+    }
+
+    //Setup, moved from start
+    public void Init()
     {
         //Check if theres a mesh
         MeshFilter mf = GetComponent<MeshFilter>();
@@ -67,94 +160,12 @@ public class SnowySurface : MonoBehaviour
                     hit = true;
                 }
             } else if (Physics.Raycast(world, Vector3.up, out ceil, ceilingHeight, layerMask)) hit = true;
-            if (hit) Hit(i, ceil.distance, gray);
-            else vertexColors[i] = new Color(1, 1, snowAlreadyFallen);
+            Color rgb = hit ? Hit(ceil.distance, gray) : new Color(1, snowAlreadyFallen, snowAlreadyFallen);
+            vertexColors[i] = rgb;
+            //Edges((int)i, rgb);
         }
 
         mesh.SetColors(vertexColors);
-    }
-
-    private void Update()
-    {
-        if (mesh == null) return;
-        if (snowfallRate <= 0) return;
-        for (int i = 0; i < vertexColors.Length; i++) {
-            if (vertexColors[i].r <= 0) continue;
-            Color rgb = vertexColors[i];
-            vertexColors[i].g = Mathf.Clamp01(rgb.g + rgb.r * snowfallRate * Time.deltaTime);
-            vertexColors[i].b = Mathf.Clamp01(rgb.b + rgb.r * snowfallRate * Time.deltaTime);
-        }
-        mesh.SetColors(vertexColors);
-    }
-
-    //When raycast hits
-    private void Hit(uint i, float dist, float gray = 1)
-    {
-        if (distanceBlend > 0) {
-            dist = (dist - distanceBlend) / difference;
-            dist = Mathf.Max(Mathf.Sign(dist), 0) * ((Mathf.Cos(Mathf.PI * dist) - 1) / -2);
-        } else dist = 0;
-        dist *= gray;
-        vertexColors[i] = new Color(dist, dist * snowAlreadyFallen, dist * snowAlreadyFallen);
-    }
-
-    //Update vertices with given indices
-    public float Carve(int index, Vector3 bary)
-    {
-        float ret = 0;
-        for (int i = 0; i < 3; i++) {
-            int x = mesh.triangles[index + i];
-            float snow = carveRate * Time.deltaTime * bary[i];
-            Color rgb = vertexColors[x];
-            rgb.g = Mathf.Clamp01(vertexColors[x].g - snow);
-            rgb.b = Mathf.Clamp01(vertexColors[x].b - snow);
-            vertexColors[x] = rgb;
-            ret += rgb.g;
-
-            //Check for edges to update adjecent chunks
-            Vector3 world = transform.TransformPoint(mesh.vertices[x]);
-            Vector3[] rays = new Vector3[4] {world + new Vector3(0.05f, 0.5f, 0.05f), world + new Vector3(-0.05f, 0.5f, 0.05f), world + new Vector3(-0.05f, 0.5f, -0.05f), world + new Vector3(0.05f, 0.5f, -0.05f) };
-            if ((int)(mesh.vertices[x].x + A) / 2 % A == 0) EdgeRayCheck(rays, rgb);
-            if ((int)(mesh.vertices[x].x + A + 2) / 2 % A == 0) EdgeRayCheck(rays, rgb);
-            if ((int)(mesh.vertices[x].z + B) / 2 % B == 0) EdgeRayCheck(rays, rgb);
-            if ((int)(mesh.vertices[x].z + B + 2) / 2 % B == 0) EdgeRayCheck(rays, rgb);
-        }
-        mesh.SetColors(vertexColors);
-        return ret / 3;
-    }
-
-    //Rays around the edge vertices to check for adjacent chunks
-    private void EdgeRayCheck(Vector3[] rays, Color rgb)
-    {
-        for (byte b = 0; b < 4; b++) {
-            if (Physics.Raycast(rays[b], Vector3.down, out RaycastHit hit, 1, 512)) {
-                if (hit.collider.gameObject.Equals(gameObject) || hit.collider.transform.Equals(transform)) continue;
-                if (hit.collider.TryGetComponent<SnowySurface>(out SnowySurface ss)) ss.UpdateFromAnother(hit.triangleIndex * 3, hit.barycentricCoordinate, rgb);
-            }
-        }
-    }
-
-    //Find matching vertex and update it's colors
-    public void UpdateFromAnother(int index, Vector3 bary, Color rgb)
-    {
-        if (mesh == null) return;
-        byte b = 0;
-        float max = 0;
-        for (byte a = 0; a < 3; a++) {
-            if (bary[a] > max) {
-                max = bary[a];
-                b = a;
-            }
-        }
-        vertexColors[mesh.triangles[index + b]] = rgb;
-        mesh.SetColors(vertexColors);
-    }
-
-    //Pass tile dimensions to check if edges
-    public void TileDimensions(int a, int b)
-    {
-        A = a;
-        B = b;
     }
 
     //Get max depth

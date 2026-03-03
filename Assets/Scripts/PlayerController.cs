@@ -160,7 +160,7 @@ public class PlayerController : MonoBehaviour
             if (snowDepth > 0) {
                 if (Physics.Raycast(transform.position, Vector3.down, out RaycastHit snow, snowDepth, 512)) {
                     if (snow.collider.gameObject.TryGetComponent<SnowySurface>(out SnowySurface script)) {
-                        moveMulti *= Mathf.Clamp(1 - script.Carve(snow.triangleIndex * 3, snow.barycentricCoordinate), 0.5f, 0.9f) + 0.1f;
+                        moveMulti *= Mathf.Clamp(1 - script.Carve(snow.triangleIndex * 3, 90 * Time.deltaTime * snow.barycentricCoordinate), 0.5f, 0.9f) + 0.1f;
                     }
                 }
             }
