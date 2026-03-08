@@ -115,7 +115,7 @@ public class DungeonGeneration : MonoBehaviour
 
     //Reset vars and generate
     [ContextMenu("Generate")]
-    public void Routine()
+    public void Routine(float recycledTime = 0)
     {
         rng = new System.Random(seed);
         Random.InitState(seed);
@@ -124,7 +124,7 @@ public class DungeonGeneration : MonoBehaviour
         currentSize = 0;
         generationTime = 0;
         connectionTime = 0;
-        totalTime = 0;
+        totalTime = recycledTime;
         byte doors = 0;
         for (byte i = 0; i < dungeon.tileset.Length; i++) {
             avgDist += dungeon.tileset[i].tile.spawnSpacing;
@@ -205,6 +205,7 @@ public class DungeonGeneration : MonoBehaviour
                 if (dungeon.minimumSurfaceArea > currentSize) {
                     Debug.LogWarning($"Bad seed, trying next seed");
                     seed++;
+                    watch.Stop();
                     Routine();
                     yield break;
                 } else Debug.Log($"Dungeon was large enough");
@@ -385,7 +386,7 @@ public class DungeonGeneration : MonoBehaviour
 
             //Take the arbitrary dimensions of the navmesh and create chunked terrain to fill it in
             extents = new Vector3(Mathf.Ceil(extents.x) * 2, Mathf.Ceil(extents.y), Mathf.Ceil(extents.z) * 2);
-            extents = new Vector3(extents.x + (SIZE - 1) - extents.x % SIZE, extents.y, extents.z + (SIZE - 1) - extents.z % SIZE);
+            extents = new Vector3(extents.x + (dungeon.extraChunks * SIZE - 1) - extents.x % SIZE, extents.y, extents.z + (dungeon.extraChunks * SIZE - 1) - extents.z % SIZE);
             center += new Vector3(extents.x / 2, 0, extents.z / 2);
             int X = (int)extents.x, Z = (int)extents.z;
             int X_ = X + 1, X__ = X + 2, Z_ = Z + 1, Z__ = Z + 2;
@@ -459,36 +460,7 @@ public class DungeonGeneration : MonoBehaviour
             }
 
             //Calculate normals for whole area
-            for (int x = 0; x < X__; x++) {
-                for (int z = 0; z < Z__; z++) {
-                    int index = x * Z__ + z;
-                    bool posX = x + 1 < X_;
-                    bool negX = x > 0;
-                    bool posZ = (z + 1) % Z__ != 0;
-                    bool negZ = z > 0;
-                    float Y = yValues[index].y;
-                    //Get normals from the 6 triangles that share this vertex
-                    if (negX) {
-                        Vector3 nx = new Vector3(-1, yValues[index - Z__].y, 0);
-                        if (negZ) normals[index] -= GatherNormals(Y, nx, new Vector3(0, yValues[index - 1].y, -1));
-                        if (posZ) {
-                            Vector3 shared = new Vector3(-1, yValues[index - Z__ + 1].y, 1);
-                            normals[index] -= GatherNormals(Y, nx, shared);
-                            normals[index] -= GatherNormals(Y, new Vector3(0, yValues[index + 1].y, 1), shared);
-                        }
-                    }
-                    if (posX) {
-                        Vector3 px = new Vector3(1, yValues[index + Z__].y, 0);
-                        if (negZ) {
-                            Vector3 shared = new Vector3(1, yValues[index + Z__ - 1].y, -1);
-                            normals[index] -= GatherNormals(Y, new Vector3(0, yValues[index - 1].y, -1), shared);
-                            normals[index] -= GatherNormals(Y, px, shared);
-                        }
-                        if (posZ) normals[index] -= GatherNormals(Y, px, new Vector3(0, yValues[index + 1].y, 1));
-                    }
-                    normals[index].Normalize();
-                }
-            }
+            CalculateNormals(X__, Z__);
 
             //Set chunk Ys
             for (int x = 0; x < X_; x++) {
@@ -567,7 +539,7 @@ public class DungeonGeneration : MonoBehaviour
         //Finished
         dungeonGenerated = true;
         watch.Stop();
-        totalTime = watch.ElapsedMilliseconds / 1000f;
+        totalTime += watch.ElapsedMilliseconds / 1000f;
         Debug.Log($"{watch.ElapsedMilliseconds}ms");
     }
 
@@ -632,6 +604,40 @@ public class DungeonGeneration : MonoBehaviour
     {
         if (Physics.Raycast(pos, Vector3.up, out RaycastHit hit, length, 256)) return hit.point - Vector3.up * 0.02f;
         else return pos;
+    }
+
+
+    //Calculate & store normals
+    private void CalculateNormals(int X, int Z)
+    {
+        for (int x = 0; x < X; x++) {
+            for (int z = 0; z < Z; z++) {
+                int index = x * Z + z;
+                bool posZ = (z + 1) % Z != 0;
+                bool negZ = z > 0;
+                float Y = yValues[index].y;
+                //Get normals from the 6 triangles that share this vertex
+                if (x > 0) {
+                    Vector3 nx = new Vector3(-1, yValues[index - Z].y, 0);
+                    if (negZ) normals[index] -= GatherNormals(Y, nx, new Vector3(0, yValues[index - 1].y, -1));
+                    if (posZ) {
+                        Vector3 shared = new Vector3(-1, yValues[index - Z + 1].y, 1);
+                        normals[index] -= GatherNormals(Y, nx, shared);
+                        normals[index] -= GatherNormals(Y, new Vector3(0, yValues[index + 1].y, 1), shared);
+                    }
+                }
+                if (x + 1 < X - 1) {
+                    Vector3 px = new Vector3(1, yValues[index + Z].y, 0);
+                    if (negZ) {
+                        Vector3 shared = new Vector3(1, yValues[index + Z - 1].y, -1);
+                        normals[index] -= GatherNormals(Y, new Vector3(0, yValues[index - 1].y, -1), shared);
+                        normals[index] -= GatherNormals(Y, px, shared);
+                    }
+                    if (posZ) normals[index] -= GatherNormals(Y, px, new Vector3(0, yValues[index + 1].y, 1));
+                }
+                normals[index].Normalize();
+            }
+        }
     }
 
     //Seamless normals

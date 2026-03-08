@@ -1,14 +1,34 @@
+using System.Collections.Generic;
+using TMPro;
 using UnityEngine;
 using UnityEngine.InputSystem;
+using UnityEngine.UI;
 
 public class PlayerController : MonoBehaviour
 {
     [Header("Camera")]
     public Transform head;
+    public Camera mainCam;
     private const float HeadHeight = 0.625f;
     public ParticleSystem[] weathersList;
     public Material weathersMaterial;
     private float weatherOffset = 0;
+
+    [Header("Prefs")]
+    public GameObject pausedScreen;
+    public TMP_Dropdown resolutionDropdown;
+    private Resolution[] resolutions;
+    private Resolution saved;
+
+    public TMP_Dropdown fpsDropdown;
+    private readonly sbyte[] framerates = new sbyte[5] { -1, 120, 90, 60, 30};
+
+    public Toggle vsyncToggle;
+    private byte useVsync = 1;
+
+    public UISetting fov;
+    public UISetting masterVolume;
+    public UISetting voiceVolume;
 
     [Header("Controls")]
     public bool paused;
@@ -60,6 +80,46 @@ public class PlayerController : MonoBehaviour
     public void Start()
     {
         Cursor.lockState = CursorLockMode.Locked;
+
+        //Load up fps settings
+        int fps = ReadPref("Framerate");
+        fpsDropdown.value = (fps < 0 ? 0 : fps);
+
+        //Load up vsync settings
+        int v = ReadPref("Vsync");
+        if (v != 0) Sync(1);
+        else {
+            vsyncToggle.isOn = false;
+            Sync(0);
+        }
+
+        //Load up fov settings
+        fov.value = ReadPref("FOV");
+        if (fov.value < 0) fov.value = 60;
+        mainCam.fieldOfView = fov.value;
+        SetSlider(fov, "FOV");
+
+        //Load up resolution settings
+        resolutions = Screen.resolutions;
+        List<string> list = new List<string>();
+        for (int i = 0; i < resolutions.Length; i++) list.Insert(0, resolutions[i].ToString());
+        resolutionDropdown.AddOptions(list);
+        double hertz = ReadResolution();
+        //Debug.Log($"<color=#009999>{Display.main.systemWidth} x {Display.main.systemHeight} @ {Screen.currentResolution.refreshRateRatio}Hz</color>");
+        for (int i = 0; i < resolutions.Length; i++) {
+            if (resolutions[i].Equals(saved) || (resolutions[i].width.Equals(saved.width) && resolutions[i].height.Equals(saved.height) && resolutions[i].refreshRateRatio.value.Equals(hertz))) {
+                resolutionDropdown.value = resolutions.Length - 1 - i;
+                break;
+            }
+        }
+        
+        //Load up volume settings
+        masterVolume.value = ReadPref("Master");
+        if (masterVolume.value < 0) masterVolume.value = 50;
+        SetSlider(masterVolume, "Master");
+        voiceVolume.value = ReadPref("Voices");
+        if (voiceVolume.value < 0) voiceVolume.value = 50;
+        SetSlider(voiceVolume, "Voices");
     }
 
     public void Update()
@@ -279,11 +339,113 @@ public class PlayerController : MonoBehaviour
         else snowDepth = depth + 0.1f + playerColliderRadius;
     }
 
+    #region Settings
+    //Change the resolutions
+    public void ChangeResolution()
+    {
+        int id = resolutions.Length - 1 - resolutionDropdown.value;
+        Debug.Log(resolutions[id]);
+        Screen.SetResolution(resolutions[id].width, resolutions[id].height, Screen.fullScreenMode, resolutions[id].refreshRateRatio);
+        SetResolution(resolutions[id]);
+    }
+
+    //Set framerate
+    public void ChangeFrameRate()
+    {
+        Frames(fpsDropdown.value);
+    }
+
+    //Save the set frames
+    private void Frames(int index)
+    {
+        fpsDropdown.value = index;
+        Application.targetFrameRate = framerates[index];
+        SetPref("Framerate", index);
+    }
+
+    //Toggle vsync
+    public void ToggleVsync()
+    {
+        useVsync = (byte)((useVsync + 1) % 2);
+        Sync(useVsync);
+    }
+
+    //Set the vsync
+    private void Sync(byte sync)
+    {
+        useVsync = sync;
+        QualitySettings.vSyncCount = sync;
+        SetPref("Vsync", sync);
+    }
+
+    //Set fov
+    public void ChangeFOV()
+    {
+        fov.value = Mathf.RoundToInt(fov.slider.value);
+        mainCam.fieldOfView = fov.value;
+        SetSlider(fov, "FOV");
+    }
+
+    //Set all volume
+    public void ChangeVolume()
+    {
+        masterVolume.value = Mathf.RoundToInt(masterVolume.slider.value);
+        SetSlider(masterVolume, "Master");
+    }
+
+    //Set voice volume
+    public void ChangeVoices()
+    {
+        voiceVolume.value = Mathf.RoundToInt(voiceVolume.slider.value);
+        SetSlider(voiceVolume, "Voices");
+    }
+
+    //update a slider
+    private void SetSlider(UISetting settings, string key)
+    {
+        settings.slider.value = settings.value;
+        settings.text.text = $"{key}: {settings.value}";
+        SetPref(key, settings.value);
+    }
+
+    //Returns value of key
+    private int ReadPref(string key)
+    {
+        if (PlayerPrefs.HasKey(key)) return PlayerPrefs.GetInt(key);
+        return -1;
+    }
+
+    //Save value of key
+    private void SetPref(string key, int value)
+    {
+        PlayerPrefs.SetInt(key, value);
+    }
+
+    private double ReadResolution()
+    {
+        if (PlayerPrefs.HasKey("Resolution")) {
+            string[] values = PlayerPrefs.GetString("Resolution").Split(',', System.StringSplitOptions.RemoveEmptyEntries);
+            saved = new Resolution();
+            saved.width = int.Parse(values[0]);
+            saved.height = int.Parse(values[1]);
+            return double.Parse(values[2]);
+        } else saved = Screen.currentResolution;
+        return -1;
+    }
+
+    //Saves resolution as WIDTH, HEIGHT, HZ
+    private void SetResolution(Resolution current)
+    {
+        PlayerPrefs.SetString("Resolution", $"{current.width}, {current.height}, {current.refreshRateRatio.value}");
+    }
+    #endregion
+
     #region Controls
     //Set pause to given state
     public void Pause(bool state)
     {
         paused = !paused;
+        pausedScreen.SetActive(paused);
         //paused = state;
         Cursor.lockState = (CursorLockMode)(paused ? 0 : 1);
     }
@@ -291,6 +453,7 @@ public class PlayerController : MonoBehaviour
     //Look rotate body and head
     public void CameraMovement(InputAction.CallbackContext ctx)
     {
+        if (paused) return;
         float x = ctx.ReadValue<Vector2>().x * lookSpeed;
         transform.Rotate(x * Vector3.up);
         ScrollWeather(x);
@@ -391,4 +554,12 @@ public class PlayerController : MonoBehaviour
         return false;
     }
     #endregion
+}
+
+[System.Serializable]
+public struct UISetting
+{
+    public Slider slider;
+    public TextMeshProUGUI text;
+    public int value;
 }

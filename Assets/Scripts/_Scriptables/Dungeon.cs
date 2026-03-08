@@ -51,6 +51,9 @@ public class Dungeon : ScriptableObject
     [Header("Map")]
     [Tooltip("The prefab for the out of bounds area.")]
     public GameObject chunkPrefab;
+    [Tooltip("Additional ring of chunks to spawn, / 2.\nUse only odd numbers pls.")]
+    [Range(1, 11)]
+    public byte extraChunks = 3; 
     [Tooltip("Perlin noise scale applied to the out of bounds area.")]
     public Vector3 perlinScale;
     [Tooltip("Points away from dungeon bounds to slerp to max perlin noise applied.")]
