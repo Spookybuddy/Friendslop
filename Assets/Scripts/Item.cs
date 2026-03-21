@@ -16,6 +16,7 @@ public class Item : MonoBehaviour
     private float snowDepth = 0;
     private const float SnowCarve = 50;
     public bool isHeld;
+    public bool isThrown = false;
     private Vector3 worldScale;
     private Transform itemStorage;
 
@@ -43,8 +44,14 @@ public class Item : MonoBehaviour
             }
         }
 
+        //Stop moving
+        if (rig == null) return;
+        if (rig.IsSleeping()) {
+            isThrown = false;
+            return;
+        }
+
         //Snow
-        if ((rig != null && rig.IsSleeping()) || rig == null) return;
         if (snowDepth > 0 && rig != null) {
             if (Physics.Raycast(transform.position, Vector3.down, out RaycastHit snow, snowDepth, 512)) {
                 if (snow.collider.gameObject.TryGetComponent<SnowySurface>(out SnowySurface script)) {
@@ -53,6 +60,18 @@ public class Item : MonoBehaviour
                     reduce = Time.deltaTime * reduce * SnowCarve / 10;
                     rig.AddForce(-rig.velocity * reduce, ForceMode.Impulse);
                 }
+            }
+        }
+    }
+
+    private void OnCollisionEnter(Collision collision)
+    {
+        if (rig.velocity.magnitude < 0.1f) return;
+        if (!isThrown) return;
+        if (collision.gameObject.CompareTag("Player")) {
+            if (collision.gameObject.TryGetComponent<PlayerController>(out PlayerController player)) {
+                player.KnockPlayer((player.transform.position - transform.position).normalized * Mathf.Clamp(item.weight, 0.001f, 5));
+                Debug.Log("Bumped player");
             }
         }
     }
@@ -77,13 +96,14 @@ public class Item : MonoBehaviour
         snowDepth = depth;
     }
 
-    //Hit item
+    //Hit item at specified point
     public void ApplyForce(Vector3 point, Vector3 force)
     {
         if (rig == null) return;
         rig.AddForceAtPosition(force, point, ForceMode.Impulse);
     }
 
+    //Force at non specific point
     public void ApplyForce(Vector3 force)
     {
         if (rig == null) return;
@@ -97,6 +117,7 @@ public class Item : MonoBehaviour
         if (isHeld) return;
 
         isHeld = true;
+        isThrown = false;
         transform.SetParent(player, false);
         transform.localPosition = item.holdOffset;
         transform.localEulerAngles = item.holdRotation;
@@ -108,6 +129,7 @@ public class Item : MonoBehaviour
     public void Drop(Vector3 pos)
     {
         isHeld = false;
+        isThrown = false;
         transform.SetParent(itemStorage, true);
         transform.localScale = worldScale;
         transform.position += pos;
@@ -124,6 +146,7 @@ public class Item : MonoBehaviour
             return;
         }
         isHeld = false;
+        isThrown = true;
         transform.SetParent(itemStorage, true);
         transform.localScale = worldScale;
         transform.position += pos;

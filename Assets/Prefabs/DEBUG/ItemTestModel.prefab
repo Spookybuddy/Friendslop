@@ -64,7 +64,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: 01dc218fb5870c04a9b9aebbd0a7574c, type: 2}
+  - {fileID: 2100000, guid: c3739e8243dff7f4781818ea6acfe9a4, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -151,3 +151,4 @@ MonoBehaviour:
   sphereCastRadius: 0.2
   groundOffset: 0.2
   isHeld: 0
+  isThrown: 0

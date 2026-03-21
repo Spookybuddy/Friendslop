@@ -452,10 +452,11 @@ public class DungeonGeneration : MonoBehaviour
             }
 
             //Add perlin to yvalues
+            Vector2 perlinOffset = new Vector2(rng.Next(), rng.Next());
             for (int x = 0; x < X__; x++) {
                 for (int z = 0; z < Z__; z++) {
                     int index = x * Z__ + z;
-                    yValues[index].y = yValues[index].y + Mathf.PerlinNoise(dungeon.perlinScale.x * x / X__, dungeon.perlinScale.z * z / Z__) * yValues[index].z * dungeon.perlinScale.y;
+                    yValues[index].y += Mathf.PerlinNoise(dungeon.perlinScale.x * x / X__ + perlinOffset.x, dungeon.perlinScale.z * z / Z__ + perlinOffset.y) * yValues[index].z * dungeon.perlinScale.y;
                 }
             }
 
@@ -477,41 +478,6 @@ public class DungeonGeneration : MonoBehaviour
                     chunkData[index].Verts(x % SIZE * SIZE_ + z % SIZE, x, z, new Vector3(ax, yValues[id].y, bz), normals[id]);
                 }
             }
-            /*
-            //This works better using the Z, but still yields poor results. Will need to plan out something both decent looking and optimized. Maybe also reduce the number of loops here
-            //Randomly spawn decor
-            if (dungeon.outsideObjects.Length > 0) {
-                for (int x = 0; x < X__; x++) {
-                    for (int z = 0; z < Z__; z++) {
-                        int index = x * Z__ + z;
-                        if (yValues[index].z < 0 || yValues[index].z == 1) continue;
-                        //pick random decor
-                        int decor = 0;
-                        uint weight = (uint)rng.Next(0, dungeon.objectWeightSum);
-                        uint sum = 0;
-                        if (dungeon.outsideObjects.Length > 1) {
-                            for (byte i = 0; i < dungeon.outsideObjects.Length; i++) {
-                                sum += dungeon.tileset[i].spawnWeight;
-                                if (sum >= weight) {
-                                    decor = i;
-                                    break;
-                                }
-                            }
-                        }
-                        //Randomly spawn object
-                        weight = (uint)rng.Next(0, 255);
-                        if (weight > dungeon.outsideObjects[decor].spawnOdds) continue;
-                        Vector3 pos = new Vector3(2 * x - X, yValues[index].y + dungeon.outsideObjects[decor].Object.groundOffset - center.y, 2 * z - Z) + center;
-                        pos += Vector3.Scale(Random.insideUnitSphere, dungeon.outsideObjects[decor].randomVariation);
-                        //Collision check for dungeon bounds
-                        if (Physics.SphereCast(new Ray(terrain.TransformPoint(pos), Vector3.down * (dungeon.outsideObjects[decor].Object.groundOffset + 1)), dungeon.outsideObjects[decor].Object.spawnRadius, 256)) continue;
-                        GameObject pp = Instantiate(dungeon.outsideObjects[decor].Object.prefab, terrain);
-                        pp.transform.localPosition = pos;
-                        pp.name = $"{pp.name[..^7]}#{index}";
-                    }
-                }
-            }
-            */
             yield return new WaitForFixedUpdate();
 
             //Create chunks local
@@ -524,7 +490,11 @@ public class DungeonGeneration : MonoBehaviour
                     g.name = $"Chunk #{i + 1}";
                     g.transform.localPosition = new Vector3(SIZE * (i / W) - X + HALF + center.x, 0, SIZE * (i % W) - Z + HALF + center.z);
                     chunks[i] = g;
+                    //Collider check
                     if (g.TryGetComponent<MeshCollider>(out MeshCollider mc)) mc.sharedMesh = chunkData[i].chunk;
+                    //Sub mesh check
+                    if (g.transform.childCount > 0 && g.transform.GetChild(0).TryGetComponent<MeshFilter>(out MeshFilter submesh)) submesh.sharedMesh = chunkData[i].chunk;
+                    //Snow check
                     if (g.TryGetComponent<SnowySurface>(out SnowySurface ss)) {
                         snowRayLength = Mathf.Max(snowRayLength, ss.MaxDepth());
                         ss.TileDimensions(SIZE_);

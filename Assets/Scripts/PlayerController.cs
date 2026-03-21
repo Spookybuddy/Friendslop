@@ -64,7 +64,7 @@ public class PlayerController : MonoBehaviour
 
     [Header("Inventory")]
     public Transform holdPosition;
-    public int playerStrength = 10;
+    public byte playerStrength = 10;
     public Transform selectionShellObject;
     public MeshFilter selectionShellMesh;
     public GameObject interactWith;
@@ -299,6 +299,18 @@ public class PlayerController : MonoBehaviour
         airtime = launchVector.y;
     }
 
+    //Bump player with less stun & not prevent jump
+    public void KnockPlayer(Vector3 direction = default)
+    {
+        if (direction == default) direction = Random.onUnitSphere * 0.1f;
+        Debug.DrawRay(transform.position, direction, Color.green, 1.5f);
+        wasLaunched = true;
+        launchVector = direction / (2 * playerStrength + 5);
+        launchVector.y = Mathf.Clamp01(Mathf.Abs(launchVector.y)) + 0.002f;
+        launchStunTime = Mathf.Clamp01(launchVector.magnitude / 2) + 0.1f;
+        Debug.Log($"Stun {launchStunTime}sec");
+    }
+
     //Hide and activate the model of the held item
     private bool UpdateItemHeld(byte index)
     {
@@ -314,6 +326,12 @@ public class PlayerController : MonoBehaviour
     {
         dropping = false;
         throwTimer = 0;
+    }
+
+    //Return to main menu
+    public void ExitGame()
+    {
+        Debug.Log($"Exit to main menu");
     }
 
     //Get/Set weather to/from manager
