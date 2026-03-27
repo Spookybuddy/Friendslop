@@ -20,7 +20,7 @@ Material:
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_Name: Bricks
+  m_Name: Wood
   m_Shader: {fileID: -6465566751694194690, guid: 2c3c6a46626419c4f8bbdeab2ec2afbd,
     type: 3}
   m_Parent: {fileID: 0}
@@ -74,7 +74,7 @@ Material:
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     - _BaseMap:
-        m_Texture: {fileID: 2800000, guid: 3f2f3bb9fdc139a478c2618cc11d0d00, type: 3}
+        m_Texture: {fileID: 2800000, guid: 8cdf8b8b7438f3248b21db81a38678ef, type: 3}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     - _BentNormalMap:
@@ -86,7 +86,7 @@ Material:
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     - _BumpMap:
-        m_Texture: {fileID: 2800000, guid: 2737229df5ce8d6498724581ba9b11f1, type: 3}
+        m_Texture: {fileID: 2800000, guid: 62df5c9bad5319e408cf9803372f566d, type: 3}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     - _ClippingMask:
@@ -268,7 +268,7 @@ Material:
     - Vector1_0f3ca3289daa40b4a7654cc64fd05ec1: 0
     - Vector1_85d44c600d6c46b38d9c8065f25681ea: 0
     - Vector1_c89cb8dc56774a9583c7b9c3a5725c4c: 0
-    - Vector1_e5b6f1488dec4326bd8bbd0e05156810: -0.18
+    - Vector1_e5b6f1488dec4326bd8bbd0e05156810: -0.3
     - _1st2nd_Shades_Feather: 0.0001
     - _1st_ShadeColor_Feather: 0.0001
     - _1st_ShadeColor_Step: 0.5
@@ -312,7 +312,7 @@ Material:
     - _BlendModePreserveSpecular: 1
     - _BlurLevelMatcap: 0
     - _BlurLevelSGM: 0
-    - _BumpScale: 0.51
+    - _BumpScale: 0.8
     - _BumpScaleMatcap: 1
     - _CameraRolling_Stabilizer: 0
     - _ClearCoatMask: 0
@@ -496,8 +496,8 @@ Material:
     - _SmoothnessRemapMax: 1
     - _SmoothnessRemapMin: 0
     - _SmoothnessTextureChannel: 0
-    - _SpecColor_1: 0.124
-    - _SpecFalloff: 0.186
+    - _SpecColor_1: 0.05
+    - _SpecFalloff: 0.203
     - _SpecShadowStrenth: 0
     - _SpecularAAScreenSpaceVariance: 0.1
     - _SpecularAAThreshold: 0.2
@@ -607,8 +607,8 @@ Material:
     - _RimLightColor: {r: 1, g: 1, b: 1, a: 1}
     - _RimLightMaskColor: {r: 1, g: 0, b: 1, a: 1}
     - _SecondShadeMaskColor: {r: 0, g: 0, b: 1, a: 1}
-    - _ShadowColor: {r: 0.09524708, g: 0.07450757, b: 0.20784017, a: 1}
-    - _SpecColor: {r: 0.24512933, g: 0.802901, b: 3.031433, a: 1}
+    - _ShadowColor: {r: 0.20753992, g: 0.049742207, b: 0, a: 0.8}
+    - _SpecColor: {r: 1.9854193, g: 1.4418371, b: 0.85223186, a: 1}
     - _SpecularColor: {r: 1, g: 1, b: 1, a: 1}
     - _ThicknessRemap: {r: 0, g: 1, b: 0, a: 0}
     - _TransmittanceColor: {r: 1, g: 1, b: 1, a: 1}
