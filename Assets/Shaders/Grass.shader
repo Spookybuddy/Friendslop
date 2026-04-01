@@ -24,6 +24,12 @@ Shader "Custom/Grass"
 		_GrassLODFade("Grass LOD Fade", Range(1, 32)) = 16.0
 		_CullGrassDistance("Cull Grass Distance", Float) = 10
 
+
+		_BlockGrass("Block Grass", Range(0, 1.0)) = 0
+		_ChannelMinimum("Channel Minimum", Range(0, 1)) = 0.1
+		//R = Harsh | G = Smooth | B = Heights | A = Depths
+		_GrassChannel("Grass Channel", Range(0, 3)) = 1
+
 		_GrassMap("Grass Visibility Map", 2D) = "white" {}
 		_GrassThreshold("Grass Visibility Threshold", Range(-0.1, 1)) = 0.5
 		_GrassFalloff("Grass Visibility Fade-In Falloff", Range(0, 0.5)) = 0.05
@@ -74,6 +80,9 @@ Shader "Custom/Grass"
 				float _TessellationGrassDistance;
 				float _GrassLODFade;
 				float _CullGrassDistance;
+				float _BlockGrass;
+				float _ChannelMinimum;
+				int _GrassChannel;
 				
 				sampler2D _GrassMap;
 				float4 _GrassMap_ST;
@@ -94,6 +103,7 @@ Shader "Custom/Grass"
 				float3 normal  : NORMAL;
 				float4 tangent : TANGENT;
 				float2 uv      : TEXCOORD0;
+				float4 color   : COLOR;
 			};
 
 			struct VertexOutput
@@ -102,6 +112,7 @@ Shader "Custom/Grass"
 				float3 normal  : NORMAL;
 				float4 tangent : TANGENT;
 				float2 uv      : TEXCOORD0;
+				float4 color   : COLOR;
 			};
 
 			struct TessellationFactors
@@ -156,6 +167,7 @@ Shader "Custom/Grass"
 				o.vertex = TransformObjectToHClip(v.vertex.xyz);
 				o.normal = v.normal;
 				o.tangent = v.tangent;
+				o.color = v.color;
 				o.uv = TRANSFORM_TEX(v.uv, _GrassMap);
 				return o;
 			}
@@ -167,6 +179,7 @@ Shader "Custom/Grass"
 				o.vertex = v.vertex;
 				o.normal = v.normal;
 				o.tangent = v.tangent;
+				o.color = v.color;
 				o.uv = v.uv;
 				return o;
 			}
@@ -178,6 +191,7 @@ Shader "Custom/Grass"
 				o.vertex = float4(TransformObjectToWorld(v.vertex), 1.0f);
 				o.normal = TransformObjectToWorldNormal(v.normal);
 				o.tangent = v.tangent;
+				o.color = v.color;
 				o.uv = TRANSFORM_TEX(v.uv, _GrassMap);
                 return o;
             }
@@ -202,15 +216,12 @@ Shader "Custom/Grass"
 
 				float3 edgeCenter = (v0 + v1) * 0.5f;
 
-				//Distance value is off, don't know how to go about fixing
-				//float viewDist = distance(TransformWorldToHClip(edgeCenter), _WorldSpaceCameraPos) / _GrassLODFade;
-				//float viewDist = distance(TransformObjectToHClip(edgeCenter), _WorldSpaceCameraPos) / _GrassLODFade;
-				//float viewDist = distance(TransformObjectToWorld(edgeCenter), _WorldSpaceCameraPos) / _GrassLODFade;
-				//float viewDist = distance(TransformObjectToWorldNormal(edgeCenter), _WorldSpaceCameraPos) / _GrassLODFade;
 				float viewDist = distance(edgeCenter, _WorldSpaceCameraPos) / _GrassLODFade;
 				viewDist = lerp(_TessellationGrassDistance, viewDist, clamp(viewDist * viewDist, 0, 1));
+				viewDist *= clamp(tex2Dlod(_GrassMap, float4(vert0.uv, 0, 0)).r, 0, 1);
 
-				return edgeLength / (_TessellationGrassDistance * viewDist);
+				//return (edgeLength) / (_TessellationGrassDistance * viewDist);
+				return (edgeLength * clamp(vert0.color[_GrassChannel] + _ChannelMinimum, 0, 1)) / (_TessellationGrassDistance * viewDist);
 			}
 
 			// Tessellation hull and domain shaders derived from Catlike Coding's tutorial:
@@ -224,9 +235,6 @@ Shader "Custom/Grass"
 			{
 				TessellationFactors f;
 
-				//f.edge[0] = tessellationEdgeFactor(patch[1], patch[2]);
-				//f.edge[1] = tessellationEdgeFactor(patch[2], patch[0]);
-				//f.edge[2] = tessellationEdgeFactor(patch[0], patch[1]);
 				f.edge[0] = tessellationEdgeFactor_distanceTest(patch[1], patch[2]);
 				f.edge[1] = tessellationEdgeFactor_distanceTest(patch[2], patch[0]);
 				f.edge[2] = tessellationEdgeFactor_distanceTest(patch[0], patch[1]);
@@ -272,6 +280,7 @@ Shader "Custom/Grass"
 				INTERPOLATE(normal)
 				INTERPOLATE(tangent)
 				INTERPOLATE(uv)
+				INTERPOLATE(color)
 
 				return tessVert(i);
 			}
@@ -298,6 +307,8 @@ Shader "Custom/Grass"
 			void geom(point VertexOutput input[1], inout TriangleStream<GeomData> triStream)
 			{
 				float grassVisibility = tex2Dlod(_GrassMap, float4(input[0].uv, 0, 0)).r;
+
+				if (input[0].color[_GrassChannel] < _BlockGrass) return;
 
 				if (grassVisibility >= _GrassThreshold) {
 					float3 pos = input[0].vertex.xyz;
@@ -330,12 +341,13 @@ Shader "Custom/Grass"
 					float3x3 tipTransformationMatrix = mul(mul(mul(tangentToLocal, windMatrix), randBendMatrix), randRotMatrix);
 
 					float falloff = smoothstep(_GrassThreshold, _GrassThreshold + _GrassFalloff, grassVisibility);
+					float channel = lerp(_ChannelMinimum, 1, input[0].color[_GrassChannel]);
 
 					//Personal culling at distance
 					if (distance(_WorldSpaceCameraPos, pos) / _GrassLODFade > _CullGrassDistance) return;
 
-					float width  = lerp(_BladeWidthMin, _BladeWidthMax, rand(pos.xzy) * falloff);
-					float height = lerp(_BladeHeightMin, _BladeHeightMax, rand(pos.zyx) * falloff);
+					float width  = lerp(_BladeWidthMin, _BladeWidthMax, rand(pos.xzy) * falloff) * channel;
+					float height = lerp(_BladeHeightMin, _BladeHeightMax, rand(pos.zyx) * falloff) * channel;
 					float forward = rand(pos.yyz) * _BladeBendDistance;
 
 					// Create blade segments by adding two vertices at once.

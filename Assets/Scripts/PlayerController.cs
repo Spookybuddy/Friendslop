@@ -12,6 +12,7 @@ public class PlayerController : MonoBehaviour
     private const float HeadHeight = 0.625f;
     public ParticleSystem[] weathersList;
     public Material weathersMaterial;
+    public Manager manager;
     private float weatherOffset = 0;
 
     [Header("Prefs")]
@@ -19,19 +20,25 @@ public class PlayerController : MonoBehaviour
     public TMP_Dropdown resolutionDropdown;
     private Resolution[] resolutions;
     private Resolution saved;
-
     public TMP_Dropdown fpsDropdown;
     private readonly sbyte[] framerates = new sbyte[5] { -1, 120, 90, 60, 30};
-
     public Toggle vsyncToggle;
     private byte useVsync = 1;
-
     public UISetting fov;
     public UISetting masterVolume;
     public UISetting voiceVolume;
+    public UISetting grassQuality;
+    public UISetting grassLod;
 
     [Header("Controls")]
     public bool paused;
+    public bool interacting;
+    private bool interactLocked;
+    private Transform interactingWith;
+    private float interactLerp = 0;
+    private Interaction interact;
+    private const float ANGLE = 57.2957795130823208768f;
+
     private const float jumpStartEval = 0.5f;
     private const float lookSpeed = 0.1f;
     private const float moveSpeed = 3.1f;
@@ -69,16 +76,19 @@ public class PlayerController : MonoBehaviour
     public MeshFilter selectionShellMesh;
     public GameObject interactWith;
     public byte heldItemIndex;
-    public Item[] inventory = new Item[5];
+    public Prop[] inventory = new Prop[5];
     private bool dropping = false;
     private float throwTimer = 0;
     public float buildupRate = 2;
     public float throwThreshold = 0.25f;
     public LayerMask interactLayers;
     public Transform interactIcon;
+    private bool holdingFurniture;
+    private bool validFurniture;
 
     public void Start()
     {
+        if (manager == null) manager = GameObject.FindGameObjectWithTag("GameController").GetComponent<Manager>();
         Cursor.lockState = CursorLockMode.Locked;
 
         //Load up fps settings
@@ -94,10 +104,8 @@ public class PlayerController : MonoBehaviour
         }
 
         //Load up fov settings
-        fov.value = ReadPref("FOV");
-        if (fov.value < 0) fov.value = 60;
+        InitSlider(fov, "FOV", 60);
         mainCam.fieldOfView = fov.value;
-        SetSlider(fov, "FOV");
 
         //Load up resolution settings
         resolutions = Screen.resolutions;
@@ -112,18 +120,26 @@ public class PlayerController : MonoBehaviour
                 break;
             }
         }
-        
+
         //Load up volume settings
-        masterVolume.value = ReadPref("Master");
-        if (masterVolume.value < 0) masterVolume.value = 50;
-        SetSlider(masterVolume, "Master");
-        voiceVolume.value = ReadPref("Voices");
-        if (voiceVolume.value < 0) voiceVolume.value = 50;
-        SetSlider(voiceVolume, "Voices");
+        InitSlider(masterVolume, "Master", 50);
+        InitSlider(voiceVolume, "Voices", 50);
+
+        //Load up grass settings
+        InitSlider(grassQuality, "GrassQlt", 3);
+        InitSlider(grassLod, "GrassLod", 200);
+        ChangeGQ();
+        ChangeGL();
     }
 
     public void Update()
     {
+        //Separate interpretation when interacting
+        if (interacting) {
+            InteractionCycle();
+            return;
+        }
+
         //Pause cant move
         if (paused) return;
 
@@ -142,6 +158,19 @@ public class PlayerController : MonoBehaviour
             if (interactIcon.gameObject.activeSelf) interactIcon.gameObject.SetActive(false);
             if (interactWith != null) interactWith = null;
             if (selectionShellMesh.mesh != null) selectionShellMesh.mesh = null;
+        }
+
+        //Furniture placement raycast
+        if (holdingFurniture) {
+            Furniture decor = inventory[heldItemIndex].GetComponent<Furniture>();
+            if (Physics.Raycast(head.position, head.forward, out RaycastHit place, 5, groundLayers)) {
+                validFurniture = decor.MoveOutline(place);
+                if (validFurniture) {
+                    if (!decor.visible) decor.Outline(true);
+                } else if (decor.visible) decor.Outline(false);
+            } else if (decor.visible) {
+                decor.Outline(false);
+            }
         }
 
         //Launch stun
@@ -244,6 +273,12 @@ public class PlayerController : MonoBehaviour
         }
     }
 
+    //When interacting inputs are interpreted differently
+    private void InteractionCycle()
+    {
+        if (interactingWith != null) Interpolate(interactingWith, interactLerp);
+    }
+
     //Return multiplicitive value for how much a player slides on specific tagged surfaces
     private float Friction(string tag = default)
     {
@@ -326,6 +361,52 @@ public class PlayerController : MonoBehaviour
     {
         dropping = false;
         throwTimer = 0;
+    }
+
+    //Move player to interaction position
+    public bool LockIntoPlace(Interaction I, Transform positon, float speed)
+    {
+        if (paused) return false;
+        interact = I;
+        interactLocked = I.lockPlayer;
+        interacting = true;
+        interactingWith = positon;
+        interactLerp = speed;
+        return true;
+    }
+
+    //Player can stop interacting
+    public void FreePlayer(float sec = 0)
+    {
+        interacting = false;
+        interactLocked = false;
+        interactingWith = null;
+        if (interact != null) {
+            interact.Drop(default);
+            interact = null;
+        }
+    }
+
+    //Move & rotate player
+    private void Interpolate(Transform target, float t)
+    {
+        if (t == 0) return;
+
+        //Pos
+        transform.position = Vector3.Lerp(transform.position, target.position, t);
+
+        //Yaw
+        Vector2 flat = new Vector2(target.forward.x, target.forward.z).normalized;
+        Vector2 xing = new Vector2(target.right.x, target.right.z).normalized;
+        Vector2 look = new Vector2(transform.forward.x , transform.forward.z);
+        float dot = 1 - Vector2.Dot(look, flat);
+        sbyte sign = (sbyte)-Mathf.Sign(Vector2.Dot(look, xing));
+        if (dot > 0.001f) transform.Rotate(Vector3.up, t * Time.deltaTime * 360 * dot * sign);
+
+        //Pitch
+        dot = 0;
+        if (target.forward.y != 0) dot = -Mathf.Asin(target.forward.y) * ANGLE;
+        head.localEulerAngles = new Vector3(Mathf.LerpAngle(head.localEulerAngles.x, dot, t * Time.deltaTime * 5), 0);
     }
 
     //Return to main menu
@@ -418,12 +499,44 @@ public class PlayerController : MonoBehaviour
         SetSlider(voiceVolume, "Voices");
     }
 
+    //Set grass quality
+    public void ChangeGQ()
+    {
+        grassQuality.value = Mathf.RoundToInt(grassQuality.slider.value);
+        SetSlider(grassQuality, "GrassQlt");
+        grassQuality.text.text = "Grass Quality" + grassQuality.value switch {
+            4 => ": High",
+            3 => ": Medium",
+            2 => ": Decent",
+            1 => ": Low",
+            _ => ""
+        };
+        manager.SetGrass();
+    }
+
+    //Set grass lod
+    public void ChangeGL()
+    {
+        grassLod.value = Mathf.RoundToInt(grassLod.slider.value);
+        SetSlider(grassLod, "GrassLod");
+        grassLod.text.text = $"Grass Detail: {grassLod.value / 10.0f}m";
+        manager.SetGrass();
+    }
+
     //update a slider
     private void SetSlider(UISetting settings, string key)
     {
         settings.slider.value = settings.value;
         settings.text.text = $"{key}: {settings.value}";
         SetPref(key, settings.value);
+    }
+
+    //initialize ui settings
+    private void InitSlider(UISetting settings, string key, int value)
+    {
+        settings.value = ReadPref(key);
+        if (settings.value < 0) settings.value = value;
+        SetSlider(settings, key);
     }
 
     //Returns value of key
@@ -462,6 +575,10 @@ public class PlayerController : MonoBehaviour
     //Set pause to given state
     public void Pause(bool state)
     {
+        if (interacting) {
+            FreePlayer();
+            return;
+        }
         paused = !paused;
         pausedScreen.SetActive(paused);
         //paused = state;
@@ -472,10 +589,11 @@ public class PlayerController : MonoBehaviour
     public void CameraMovement(InputAction.CallbackContext ctx)
     {
         if (paused) return;
+        if (interactLocked) return;
         float x = ctx.ReadValue<Vector2>().x * lookSpeed;
         transform.Rotate(x * Vector3.up);
         ScrollWeather(x);
-        head.localEulerAngles = new Vector3(head.localEulerAngles.x - ctx.ReadValue<Vector2>().y * lookSpeed, 0, 0);
+        head.localEulerAngles = new Vector3(head.localEulerAngles.x - ctx.ReadValue<Vector2>().y * lookSpeed, 0);
     }
 
     //Movement input
@@ -489,7 +607,9 @@ public class PlayerController : MonoBehaviour
     //Jump input
     public void Jump(InputAction.CallbackContext ctx)
     {
-        if (!hasJumped) {
+        if (interacting) {
+            //Minigame input
+        } else if (!hasJumped) {
             risingJump = true;
             hasJumped = true;
             airtime = jumpStartEval;
@@ -499,6 +619,7 @@ public class PlayerController : MonoBehaviour
     //Run input
     public void Sprint(InputAction.CallbackContext ctx)
     {
+        if (interacting) return;
         isSneaking = false;
         if (ctx.started) isSprinting = true;
         if (ctx.canceled) isSprinting = false;
@@ -507,6 +628,10 @@ public class PlayerController : MonoBehaviour
     //Sneak input
     public void Sneak(InputAction.CallbackContext ctx)
     {
+        if (interacting) {
+            FreePlayer();
+            return;
+        }
         isSprinting = false;
         if (ctx.started) isSneaking = true;
         if (ctx.canceled) isSneaking = false;
@@ -519,6 +644,7 @@ public class PlayerController : MonoBehaviour
             if (interactWith != null) {
                 //Check if player can actually hold an item
                 bool grab = false;
+                if (holdingFurniture) return;
                 if (inventory[heldItemIndex] != null) {
                     for (byte i = 0; i < inventory.Length; i++) {
                         if (inventory[(heldItemIndex + i + inventory.Length) % inventory.Length] != null) continue;
@@ -529,9 +655,11 @@ public class PlayerController : MonoBehaviour
 
                 //Grab item
                 if (grab) {
-                    if (interactWith.TryGetComponent<Item>(out Item script)) {
-                        inventory[heldItemIndex] = script;
-                        script.Grab(holdPosition);
+                    if (interactWith.TryGetComponent<Prop>(out Prop script)) {
+                        if (script.Grab(holdPosition)) {
+                            inventory[heldItemIndex] = script;
+                            if (script.TryGetComponent<Furniture>(out _)) holdingFurniture = true;
+                        }
                     }
                 }
             }
@@ -544,10 +672,15 @@ public class PlayerController : MonoBehaviour
         //If holding item, start building throw charge to be applied on release of button
         if (ctx.started && inventory[heldItemIndex] != null) dropping = true;
         if (ctx.canceled && dropping && inventory[heldItemIndex] != null) {
+            if (holdingFurniture && !validFurniture) {
+                CancelDrop();
+                return;
+            }
             inventory[heldItemIndex].SnowData(snowDepth - playerColliderRadius);
             if (throwTimer > throwThreshold) inventory[heldItemIndex].Throw(transform.forward, playerStrength * throwTimer * head.forward);
             else inventory[heldItemIndex].Drop(transform.forward);
             inventory[heldItemIndex] = null;
+            holdingFurniture = false;
             CancelDrop();
         }
     }
@@ -555,6 +688,7 @@ public class PlayerController : MonoBehaviour
     //Scroll inventory
     public void Scroll(InputAction.CallbackContext ctx)
     {
+        if (holdingFurniture) return;
         sbyte scroll = (sbyte)(Mathf.Clamp(ctx.ReadValue<Vector2>().y, -1, 1));
         UpdateItemHeld((byte)((scroll + inventory.Length + heldItemIndex) % inventory.Length));
     }
@@ -562,6 +696,7 @@ public class PlayerController : MonoBehaviour
     //Hotkey
     public bool Hotkey(InputAction.CallbackContext ctx)
     {
+        if (holdingFurniture) return false;
         Vector3 input = ctx.ReadValue<Vector3>();
         if (input.y > 0) return UpdateItemHeld(0);
         if (input.y < 0) return UpdateItemHeld(1);

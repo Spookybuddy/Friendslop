@@ -40,12 +40,12 @@ MonoBehaviour:
   selfConnections: 0
   distanceMultiplier: 3
   dotLimit: -0.7
-  chunkPrefab: {fileID: 5381765839100838825, guid: 1a03dc2031ff6c64b994de819d5708c7,
+  chunkPrefab: {fileID: 4943488530812381464, guid: 6bf29aef116d38040be7d101f3416a8e,
     type: 3}
   extraChunks: 3
   perlinScale: {x: 3, y: 1, z: 3}
   slerpDistance: 4
-  extra0Point: 1
+  extra0Point: 0
   outsideObjects:
   - Object: {fileID: 11400000, guid: 85959d84091879d4db9214ed562728d2, type: 2}
     randomVariation: {x: 1, y: 0, z: 1}

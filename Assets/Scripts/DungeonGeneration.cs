@@ -22,26 +22,30 @@ public struct MeshChunk
     public Vector2[] uvs;
     public int[] triangles;
     public Vector3[] normals;
+    public Color[] colors;
     public Mesh chunk;
     public MeshChunk(int scale, int tris)
     {
         vertices = new Vector3[scale];
         normals = new Vector3[scale];
+        colors = new Color[scale];
         uvs = new Vector2[scale];
         triangles = new int[tris];
         chunk = new Mesh();
     }
-    public readonly void Verts(int i, int x, int z, Vector3 pos, Vector3 norm)
+    public readonly void Verts(int i, int x, int z, Vector3 pos, Vector3 norm, Color col)
     {
         vertices[i] = pos;
         uvs[i] = new Vector2(x, z);
         normals[i] = norm;
+        colors[i] = col;
     }
     public readonly void Create() {
         chunk.vertices = vertices;
         chunk.SetUVs(0, uvs);
         chunk.triangles = triangles;
         chunk.normals = normals;
+        chunk.colors = colors;
         //chunk.RecalculateNormals();
         chunk.Optimize();
     }
@@ -132,6 +136,10 @@ public class DungeonGeneration : MonoBehaviour
         }
 
         for (byte i = 0; i < chunks.Length; i++) Destroy(chunks[i]);
+
+        //Grass mat check before spawning
+        //Grass check
+
 
         //I should expect that the weights are already summed, but people are dumb so I have to cater to the lowest denominator
         dungeon.SumWeights();
@@ -424,7 +432,7 @@ public class DungeonGeneration : MonoBehaviour
                     pos = terrain.InverseTransformPoint(HitCheck(terrain.TransformPoint(pos), extents.y * 2));
                     if (pos.y > center.y - extents.y) {
                         points.Add(new Point(x, z));
-                        yValues[index] = new Vector3(-1, pos.y, 0);
+                        yValues[index] = new Vector3(-2, pos.y, 0);
                     } else yValues[index] = new Vector3(1, pos.y, 1);
                     //X = has been set, Y = value, Z = perlin multiplier
                 }
@@ -452,13 +460,17 @@ public class DungeonGeneration : MonoBehaviour
             }
 
             //Add perlin to yvalues
+            Vector3 normalyzed = Vector3.forward;
             Vector2 perlinOffset = new Vector2(rng.Next(), rng.Next());
             for (int x = 0; x < X__; x++) {
                 for (int z = 0; z < Z__; z++) {
                     int index = x * Z__ + z;
                     yValues[index].y += Mathf.PerlinNoise(dungeon.perlinScale.x * x / X__ + perlinOffset.x, dungeon.perlinScale.z * z / Z__ + perlinOffset.y) * yValues[index].z * dungeon.perlinScale.y;
+                    if (yValues[index].y < normalyzed.x) normalyzed.x = yValues[index].y;
+                    if (yValues[index].y > normalyzed.y) normalyzed.y = yValues[index].y;
                 }
             }
+            normalyzed.z = normalyzed.y - normalyzed.x;
 
             //Calculate normals for whole area
             CalculateNormals(X__, Z__);
@@ -471,11 +483,11 @@ public class DungeonGeneration : MonoBehaviour
                     float ax = (x % SIZE) - HALF;
                     float bz = (z % SIZE) - HALF;
                     if ((x + 1) % SIZE == 0 && x > 0) {
-                        chunkData[index].Verts(SIZE * SIZE_ + z % SIZE, x + 1, z, new Vector3(ax + 1, yValues[id + Z__].y, bz), normals[id + Z__]);
-                        if ((z + 1) % SIZE == 0 && z > 0) chunkData[index].Verts(SIZE * SIZE_ + SIZE, x + 1, z + 1, new Vector3(ax + 1, yValues[id + Z__ + 1].y, bz + 1), normals[id + Z__ + 1]);
+                        chunkData[index].Verts(SIZE * SIZE_ + z % SIZE, x + 1, z, new Vector3(ax + 1, yValues[id + Z__].y, bz), normals[id + Z__], VertexColorMask(id + Z__, normalyzed));
+                        if ((z + 1) % SIZE == 0 && z > 0) chunkData[index].Verts(SIZE * SIZE_ + SIZE, x + 1, z + 1, new Vector3(ax + 1, yValues[id + Z__ + 1].y, bz + 1), normals[id + Z__ + 1], VertexColorMask(id + Z__ + 1, normalyzed));
                     }
-                    if ((z + 1) % SIZE == 0 && z > 0) chunkData[index].Verts(x % SIZE * SIZE_ + SIZE, x, z + 1, new Vector3(ax, yValues[id + 1].y, bz + 1), normals[id + 1]);
-                    chunkData[index].Verts(x % SIZE * SIZE_ + z % SIZE, x, z, new Vector3(ax, yValues[id].y, bz), normals[id]);
+                    if ((z + 1) % SIZE == 0 && z > 0) chunkData[index].Verts(x % SIZE * SIZE_ + SIZE, x, z + 1, new Vector3(ax, yValues[id + 1].y, bz + 1), normals[id + 1], VertexColorMask(id + 1, normalyzed));
+                    chunkData[index].Verts(x % SIZE * SIZE_ + z % SIZE, x, z, new Vector3(ax, yValues[id].y, bz), normals[id], VertexColorMask(id, normalyzed));
                 }
             }
             yield return new WaitForFixedUpdate();
@@ -576,7 +588,6 @@ public class DungeonGeneration : MonoBehaviour
         else return pos;
     }
 
-
     //Calculate & store normals
     private void CalculateNormals(int X, int Z)
     {
@@ -625,6 +636,18 @@ public class DungeonGeneration : MonoBehaviour
         if (yValues[id].x < 0) return;
         yValues[id] = new Vector3(-1, Mathf.Max(yValues[id].y, Y), perlin);
         points.Add(new Point(x, z));
+    }
+
+    //Preset vertex color for shaders: R = Harsh | G = Smooth | B = Heights | A = Depths
+    private Color VertexColorMask(int index, Vector3 normalize)
+    {
+        Color c = new Color();
+        float y = (yValues[index].y - normalize.x) / normalize.z;
+        c.r = yValues[index].x + 2;
+        c.g = yValues[index].z;
+        c.b = y;
+        c.a = 1 - y;
+        return c;
     }
 
     //Create a curve from door to door
@@ -703,5 +726,23 @@ public class DungeonGeneration : MonoBehaviour
         mesh.RecalculateNormals();
         mesh.Optimize();
         return mesh;
+    }
+
+    //Check for grass mat to change to player settings
+    public Material GetGrassMat()
+    {
+        if (dungeon.chunkPrefab.TryGetComponent<MeshRenderer>(out MeshRenderer mr)) {
+            if (mr.sharedMaterial.HasProperty("_GrassLODFade")) {
+                Debug.Log($"Grass material");
+                return mr.sharedMaterial;
+            }
+        }
+        if (dungeon.chunkPrefab.transform.childCount > 0 && dungeon.chunkPrefab.transform.GetChild(0).TryGetComponent<MeshRenderer>(out MeshRenderer cr)) {
+            if (cr.sharedMaterial.HasProperty("_GrassLODFade")) {
+                Debug.Log($"Grass material child");
+                return cr.sharedMaterial;
+            }
+        }
+        return null;
     }
 }

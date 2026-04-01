@@ -1,6 +1,6 @@
 using UnityEngine;
 
-public class Item : MonoBehaviour
+public class Item : Prop
 {
     [Tooltip("Scriptable object")]
     public ItemObject item;
@@ -15,16 +15,12 @@ public class Item : MonoBehaviour
     private const float GRAV = 9;
     private float snowDepth = 0;
     private const float SnowCarve = 50;
-    public bool isHeld;
     public bool isThrown = false;
-    private Vector3 worldScale;
-    private Transform itemStorage;
 
     // Start is called before the first frame update
-    void Start()
+    public override void Start()
     {
-        worldScale = transform.localScale;
-        itemStorage = transform.parent;
+        base.Start();
         PhysicsStart();
     }
 
@@ -91,7 +87,7 @@ public class Item : MonoBehaviour
     }
 
     //Pass the snow data from player that grabbed it
-    public void SnowData(float depth)
+    public override void SnowData(float depth)
     {
         snowDepth = depth;
     }
@@ -111,45 +107,37 @@ public class Item : MonoBehaviour
     }
 
     //Player grabs item
-    public void Grab(Transform player)
+    public override bool Grab(Transform player)
     {
-        //Already being held
-        if (isHeld) return;
-
-        isHeld = true;
         isThrown = false;
-        transform.SetParent(player, false);
+        bool ret = base.Grab(player);
+        if (!ret) return false;
         transform.localPosition = item.holdOffset;
         transform.localEulerAngles = item.holdRotation;
         transform.localScale = item.holdScale;
         if (rig != null) rig.isKinematic = true;
+        return true;
     }
 
     //Player drops item
-    public void Drop(Vector3 pos)
+    public override void Drop(Vector3 pos)
     {
-        isHeld = false;
         isThrown = false;
-        transform.SetParent(itemStorage, true);
-        transform.localScale = worldScale;
-        transform.position += pos;
+        base.Drop(transform.position + pos);
         if (rig != null) rig.isKinematic = false;
         PhysicsStart();
     }
 
     //Player throws item with rig
-    public void Throw(Vector3 pos, Vector3 direction)
+    public override void Throw(Vector3 pos, Vector3 direction)
     {
         //Rigless behavior just gets dropped
         if (rig == null) {
             Drop(pos);
             return;
         }
-        isHeld = false;
         isThrown = true;
-        transform.SetParent(itemStorage, true);
-        transform.localScale = worldScale;
-        transform.position += pos;
+        base.Throw(pos, direction);
         rig.isKinematic = false;
         ApplyForce(direction);
         Gravity(true);
