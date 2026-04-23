@@ -71,6 +71,12 @@ public class Dungeon : ScriptableObject
     public WeatherSettings[] atmospheres;
     [Tooltip("Sum of the weathers' weights. Can be calculated via the Context Menu (three dots top right)")]
     public int atmosWeightSum = 0;
+    [Tooltip("Variation to grass color, stored in the default generated vertex color B channel.")]
+    public Channel grassColorNoise = (Channel)32;
+    [Tooltip("Variation to grass density, stored in the default generated vertex color A channel.")]
+    public Channel grassAlphaNoise = (Channel)1042;
+    [Tooltip("Vertex channel noise scale. X & Y = perlin. Z = noise. -Z inverts the noise.")]
+    public Vector3 channelNoiseScale = Vector3.one;
 
     [ContextMenu("Calculate Weight Sum")]
     public void SumWeights()
@@ -82,5 +88,23 @@ public class Dungeon : ScriptableObject
         for (int i = 0; i < atmospheres.Length; i++) atmosWeightSum += atmospheres[i].weight;
         for (int i = 0; i < outsideObjects.Length; i++) objectWeightSum += outsideObjects[i].spawnWeight;
         if (minimumSurfaceArea > targetSurfaceArea) (targetSurfaceArea, minimumSurfaceArea) = (minimumSurfaceArea, targetSurfaceArea);
+    }
+
+    [System.Flags]
+    [System.Serializable]
+    public enum Channel
+    {
+        Harsh = 1,
+        Smooth = 2,
+        Ceiling = 4,
+        Floor = 8,
+        Noise = 16,
+        Perlin = 32,
+        Minimum = 64,
+        Maximum = 128,
+        Combined = 256,
+        Difference = 512,
+        Multiplicitive = 1024,
+        Normalized = 2048
     }
 }

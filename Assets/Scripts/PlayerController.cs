@@ -29,6 +29,8 @@ public class PlayerController : MonoBehaviour
     public UISetting voiceVolume;
     public UISetting grassQuality;
     public UISetting grassLod;
+    public Color playerColor;
+    public string lastColor = "FFFFFF";
 
     [Header("Controls")]
     public bool paused;
@@ -130,6 +132,14 @@ public class PlayerController : MonoBehaviour
         InitSlider(grassLod, "GrassLod", 200);
         ChangeGQ();
         ChangeGL();
+
+        //Load up player color & outfit
+        if (PlayerPrefs.HasKey("Color")) lastColor = PlayerPrefs.GetString("Color");
+        if (ColorUtility.TryParseHtmlString($"#{lastColor}", out Color c)) {
+            playerColor = c;
+            GetComponent<Renderer>().material.color = playerColor;
+            Debug.Log("Colro");
+        }
     }
 
     public void Update()
@@ -276,7 +286,10 @@ public class PlayerController : MonoBehaviour
     //When interacting inputs are interpreted differently
     private void InteractionCycle()
     {
-        if (interactingWith != null) Interpolate(interactingWith, interactLerp);
+        if (interactingWith != null) {
+            Interpolate(interactingWith, interactLerp);
+            if (interact.snapIntoPlace && interactLerp > 0) interactLerp = Mathf.Max(interactLerp - Time.deltaTime * 2, 0);
+        }
     }
 
     //Return multiplicitive value for how much a player slides on specific tagged surfaces
@@ -364,14 +377,14 @@ public class PlayerController : MonoBehaviour
     }
 
     //Move player to interaction position
-    public bool LockIntoPlace(Interaction I, Transform positon, float speed)
+    public bool LockIntoPlace(Interaction I, Transform position)
     {
         if (paused) return false;
         interact = I;
         interactLocked = I.lockPlayer;
         interacting = true;
-        interactingWith = positon;
-        interactLerp = speed;
+        interactingWith = position;
+        interactLerp = I.playerForce;
         return true;
     }
 
@@ -523,6 +536,15 @@ public class PlayerController : MonoBehaviour
         manager.SetGrass();
     }
 
+    //Set player color
+    public void ChangeColor(Color input)
+    {
+        lastColor = ColorUtility.ToHtmlStringRGB(input);
+        playerColor = input;
+        GetComponent<Renderer>().material.color = playerColor;
+        SetPref("Color", lastColor);
+    }
+
     //update a slider
     private void SetSlider(UISetting settings, string key)
     {
@@ -550,6 +572,12 @@ public class PlayerController : MonoBehaviour
     private void SetPref(string key, int value)
     {
         PlayerPrefs.SetInt(key, value);
+    }
+
+    //Save string of key
+    private void SetPref(string key, string value)
+    {
+        PlayerPrefs.SetString(key, value);
     }
 
     private double ReadResolution()
@@ -609,6 +637,7 @@ public class PlayerController : MonoBehaviour
     {
         if (interacting) {
             //Minigame input
+            interact.JumpInput();
         } else if (!hasJumped) {
             risingJump = true;
             hasJumped = true;

@@ -40,7 +40,7 @@ MonoBehaviour:
   selfConnections: 0
   distanceMultiplier: 3
   dotLimit: -0.7
-  chunkPrefab: {fileID: 4943488530812381464, guid: 6bf29aef116d38040be7d101f3416a8e,
+  chunkPrefab: {fileID: 5381765839100838825, guid: 1a03dc2031ff6c64b994de819d5708c7,
     type: 3}
   extraChunks: 3
   perlinScale: {x: 3, y: 1, z: 3}
@@ -70,3 +70,6 @@ MonoBehaviour:
     fog: {fileID: 11400000, guid: e558bfae6b322fc468864162710edf04, type: 2}
     weight: 5
   atmosWeightSum: 25
+  grassColorNoise: 32
+  grassAlphaNoise: 2
+  channelNoiseScale: {x: 0.1, y: 0.1, z: 1}

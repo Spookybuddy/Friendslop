@@ -94,7 +94,9 @@ Material:
         m_Offset: {x: 0, y: 0}
     m_Ints: []
     m_Floats:
+    - _AddAlpha: 0.4
     - _AlphaClip: 0
+    - _AlphaCutoff: 0
     - _AlphaToMask: 0
     - _BendDelta: 0.1
     - _BladeBendCurve: 1
@@ -108,11 +110,11 @@ Material:
     - _BlendModePreserveSpecular: 1
     - _BlockGrass: 0
     - _BumpScale: 1
-    - _ChannelMinimum: 1
+    - _ChannelMinimum: 0.05
     - _ClearCoatMask: 0
     - _ClearCoatSmoothness: 0
     - _Cull: 2
-    - _CullGrassDistance: 8
+    - _CullGrassDistance: 200
     - _Cutoff: 0.5
     - _DetailAlbedoMapScale: 1
     - _DetailNormalMapScale: 1
@@ -142,11 +144,15 @@ Material:
     - _WorkflowMode: 1
     - _ZWrite: 1
     m_Colors:
+    - _BChannelColor: {r: 1, g: 1, b: 1, a: 1}
     - _BaseColor: {r: 0.06581523, g: 0.2735849, b: 0.08111531, a: 1}
     - _Color: {r: 1, g: 1, b: 1, a: 1}
     - _EmissionColor: {r: 0, g: 0, b: 0, a: 1}
+    - _GChannelColor: {r: 1, g: 1, b: 1, a: 1}
+    - _RChannelColor: {r: 1, g: 1, b: 1, a: 1}
     - _SpecColor: {r: 0.19999996, g: 0.19999996, b: 0.19999996, a: 1}
     - _TipColor: {r: 0.22018607, g: 0.6981132, b: 0.13501245, a: 1}
+    - _Variation: {r: 0.5187054, g: 0.6698113, b: 0.2748754, a: 1}
     - _WindVelocity: {r: 1, g: 1, b: 1, a: 1.2}
   m_BuildTextureStacks: []
 --- !u!114 &1174918970055503081

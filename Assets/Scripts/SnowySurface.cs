@@ -33,7 +33,7 @@ public class SnowySurface : MonoBehaviour
     private int dimensions;
 
     //Start: Gather covering data into R
-    //Buildup: Current value is G & B
+    //Buildup: Current value is G
 
     void Start()
     {
@@ -48,7 +48,6 @@ public class SnowySurface : MonoBehaviour
             if (vertexColors[i].r <= 0) continue;
             Color rgb = vertexColors[i];
             vertexColors[i].g = Mathf.Clamp01(rgb.g + rgb.r * snowfallRate * Time.deltaTime);
-            vertexColors[i].b = Mathf.Clamp01(rgb.b + rgb.r * snowfallRate * Time.deltaTime);
         }
         mesh.SetColors(vertexColors);
     }
@@ -73,7 +72,6 @@ public class SnowySurface : MonoBehaviour
             float snow = carveRate * Time.deltaTime * bary[i];
             Color rgb = vertexColors[x];
             rgb.g = Mathf.Clamp01(vertexColors[x].g - snow);
-            rgb.b = Mathf.Clamp01(vertexColors[x].b - snow);
             vertexColors[x] = rgb;
             ret += rgb.g;
             Edges(x, rgb);
