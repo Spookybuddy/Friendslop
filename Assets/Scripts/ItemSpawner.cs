@@ -10,11 +10,17 @@ public class ItemSpawner : MonoBehaviour
     public sbyte amountVariation = 1;
     private Transform itemStorageParent;
 
+    [Header("Launch items")]
+    public ItemSpawnSettings thrown;
+    public float force = 10;
+    private float interval = 0;
+    private GameObject previous;
+
     private void Start()
     {
         itemStorageParent = GameObject.FindGameObjectWithTag("Finish").transform;
         for (int i = 0; i < spawnableItems.Length; i++) spawnWeightTotal += spawnableItems[i].spawnWeight;
-        Distribute();
+        //Distribute();
     }
 
     public void Distribute(int seed = 0)
@@ -42,5 +48,20 @@ public class ItemSpawner : MonoBehaviour
         (pos.z, pos.y) = (pos.y, pos.z);
         GameObject item = Instantiate(spawnableItems[id].item.prefab, pos + Vector3.up, Quaternion.identity, itemStorageParent);
         item.name = spawnableItems[id].item.name;
+    }
+
+    private void Update()
+    {
+        if (interval > 8) {
+            if (previous != null) {
+                if (previous.transform.childCount > 0) previous.transform.DetachChildren();
+                Destroy(previous);
+            }
+            previous = Instantiate(thrown.item.prefab, transform.position + Vector3.up, Quaternion.identity, itemStorageParent);
+            Item script = previous.GetComponent<Item>();
+            script.isThrown = true;
+            script.ApplyForce(transform.forward * force);
+            interval = 0;
+        } else interval += Time.deltaTime;
     }
 }
