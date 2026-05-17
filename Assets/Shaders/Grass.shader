@@ -5,26 +5,31 @@ Shader "Custom/Grass"
 
 	Properties
 	{
-		_BaseColor("Base Color", Color) = (1, 1, 1, 1)
-		_TipColor("Tip Color", Color) = (1, 1, 1, 1)
-		_Variation("Color Variation", Color) = (1, 1, 1, 1)
+		_BaseColor("Base Color", Color) = (0.067, 0.275, 0.082, 1)
+		_TipColor("Tip Color", Color) = (0.22, 0.7, 0.133, 1)
+		_Variation("Color Variation", Color) = (0.517, 0.67, 0.275, 1)
 		_BladeTexture("Blade Texture", 2D) = "white" {}
+		_WeedTexture("Weed Texture", 2D) = "white" {}
+		_WeedChannels("Weed Channel", Vector) = (0, 0, 0, 0)
+		_WeedRarity("Weed Rarity", float) = 0
 		_AlphaCutoff("Alpha Cutoff", Range(0, 1.0)) = 0
 		_AddAlpha("Add Alpha", Range(0, 1)) = 0.1
+		_FrustrumCull("Frustrum Cull", Range(2, 8)) = 5
 
 		_BladeWidthMin("Blade Width (Min)", Range(0, 0.1)) = 0.02
 		_BladeWidthMax("Blade Width (Max)", Range(0, 0.1)) = 0.05
 		_BladeHeightMin("Blade Height (Min)", Range(0, 2)) = 0.1
 		_BladeHeightMax("Blade Height (Max)", Range(0, 2)) = 0.2
 
+		_MinimumRender("Minimum Grass Density", Range(0, 8)) = 5
 		_BladeSegments("Blade Segments", Range(1, 4)) = 2
 		_BladeBendDistance("Blade Forward Amount", Float) = 0.38
 		_BladeBendCurve("Blade Curvature Amount", Range(1, 4)) = 2
 
 		_BendDelta("Bend Variation", Range(0, 1)) = 0.2
 
-		_TessellationGrassDistance("Tessellation Grass Distance", Range(0.01, 2)) = 0.1
-		_GrassLODFade("Grass LOD Fade", Range(1, 32)) = 16.0
+		_TessellationGrassDistance("Tessellation Grass Distance", Range(0.01, 2)) = 0.2
+		_GrassLODFade("Grass LOD Fade", Range(8, 32)) = 16.0
 		_CullGrassDistance("Cull Grass Distance", Float) = 10
 
 		_GrassMap("Grass Visibility Map", 2D) = "white" {}
@@ -46,6 +51,7 @@ Shader "Custom/Grass"
 		}
 		LOD 100
 		Cull Off
+		AlphaToMask On
 
 		HLSLINCLUDE
 			#include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
@@ -63,14 +69,21 @@ Shader "Custom/Grass"
 				float4 _TipColor;
 				float4 _Variation;
 				sampler2D _BladeTexture;
+				float4 _BladeTexture_ST;
+				sampler2D _WeedTexture;
+				float4 _WeedTexture_ST;
+				float4 _WeedChannels;
+				float _WeedRarity;
 				float _AlphaCutoff;
 				float _AddAlpha;
+				float _FrustrumCull;
 
 				float _BladeWidthMin;
 				float _BladeWidthMax;
 				float _BladeHeightMin;
 				float _BladeHeightMax;
 
+				int _MinimumRender;
 				float _BladeSegments;
 				float _BladeBendDistance;
 				float _BladeBendCurve;
@@ -120,6 +133,7 @@ Shader "Custom/Grass"
 
 			struct GeomData
 			{
+				float4 vertex : TANGENT;
 				float4 pos : SV_POSITION;
 				float2 uv  : TEXCOORD0;
 				float3 worldPos : TEXCOORD1;
@@ -202,13 +216,19 @@ Shader "Custom/Grass"
 				float edgeLength = distance(v0, v1);
 				//return edgeLength / _TessellationGrassDistance;
 				float3 edgeCenter = (v0 + v1) * 0.5f;
+				float viewDist = distance(edgeCenter, _WorldSpaceCameraPos);
 
-				float viewDist = distance(edgeCenter, _WorldSpaceCameraPos) / _GrassLODFade;
+				//Frustrum culling (+30 fps)
+				float frustrum = dot((edgeCenter - _WorldSpaceCameraPos), GetViewForwardDir());
+				if (frustrum < 0 && viewDist > _FrustrumCull) return 0;
+
+				viewDist /= _GrassLODFade;
 				viewDist = lerp(_TessellationGrassDistance, viewDist, clamp(viewDist * viewDist, 0, 1));
+				viewDist = max(floor(viewDist * 2) / 2, _TessellationGrassDistance);
 				viewDist *= clamp(tex2Dlod(_GrassMap, float4(vert0.uv, 0, 0)).r, 0, 1);
-
 				//return (edgeLength) / (_TessellationGrassDistance * viewDist);
-				return (edgeLength * clamp(vert0.color.a + _AddAlpha, 0, 1)) / (_TessellationGrassDistance * viewDist);
+				viewDist = (edgeLength * clamp(vert0.color.a + _AddAlpha, 0, 1)) / (_TessellationGrassDistance * viewDist);
+				return max(viewDist, _MinimumRender);
 			}
 
 			// Tessellation hull and domain shaders derived from Catlike Coding's tutorial:
@@ -280,7 +300,7 @@ Shader "Custom/Grass"
 			GeomData TransformGeomToClip(float3 pos, float3 offset, float3x3 transformationMatrix, float2 uv, float4 c)
 			{
 				GeomData o;
-
+				o.vertex = float4(pos, 1.0f);
 				o.pos = TransformWorldToHClip(pos + mul(transformationMatrix, offset));
 				o.uv = uv;
 				o.worldPos = TransformWorldToHClip(pos + mul(transformationMatrix, offset));
@@ -334,20 +354,36 @@ Shader "Custom/Grass"
 					//Personal culling at distance
 					if (distance(_WorldSpaceCameraPos, pos) > _CullGrassDistance) return;
 
-					float width  = lerp(_BladeWidthMin, _BladeWidthMax, rand(pos.xzy) * falloff) * channel;
-					float height = lerp(_BladeHeightMin, _BladeHeightMax, rand(pos.zyx) * falloff) * channel;
+					float width  = lerp(_BladeWidthMin, _BladeWidthMax, rand(pos.xzy) * falloff);
+					float height = lerp(_BladeHeightMin, _BladeHeightMax, rand(pos.zyx) * falloff);
 					float forward = rand(pos.yyz) * _BladeBendDistance;
 
+					//Weeds are bigger 
+					if (_WeedRarity > 0) {
+						float scaleX = 1;
+						float scaleY = 1;
+						if (_WeedChannels.z != 0) scaleX = max(-sign(_WeedChannels.z), 0) + _WeedChannels.z * input[0].color.b;
+						if (_WeedChannels.w != 0) scaleY = max(-sign(_WeedChannels.w), 0) + _WeedChannels.w * input[0].color.a;
+						else {
+							width *= channel;
+							height *= channel;
+						}
+						if (pow(rand(pos.zxz), _WeedRarity) > 0.5 && scaleX > 0.5 && scaleY > 0.5) {
+							width *= _WeedTexture_ST.x;
+							height *= _WeedTexture_ST.y;
+						}
+					}
+
 					// Create blade segments by adding two vertices at once.
-					float lod = min(_BladeSegments, 4 - distance(_WorldSpaceCameraPos, pos) / _GrassLODFade);
+					float lod = min(_BladeSegments, clamp(4 - distance(_WorldSpaceCameraPos, pos) / _GrassLODFade, 1, 4));
 					for (int i = 0; i < lod; ++i) {
 						float t = i / lod;
 						float3 offset = float3(width * (1 - t), pow(t, _BladeBendCurve) * forward, height * t);
 
 						float3x3 transformationMatrix = (i == 0) ? baseTransformationMatrix : tipTransformationMatrix;
 
-						triStream.Append(TransformGeomToClip(pos, float3( offset.x, offset.y, offset.z), transformationMatrix, float2(0, t), input[0].color));
-						triStream.Append(TransformGeomToClip(pos, float3(-offset.x, offset.y, offset.z), transformationMatrix, float2(1, t), input[0].color));
+						triStream.Append(TransformGeomToClip(pos, float3( offset.x, offset.y, offset.z), transformationMatrix, float2(0 + i * 0.5 / lod, t), input[0].color));
+						triStream.Append(TransformGeomToClip(pos, float3(-offset.x, offset.y, offset.z), transformationMatrix, float2(1 - i * 0.5 / lod, t), input[0].color));
 					}
 
 					// Add the final vertex at the tip of the grass blade.
@@ -379,7 +415,15 @@ Shader "Custom/Grass"
 			// https://forum.unity.com/threads/water-shader-graph-transparency-and-shadows-universal-render-pipeline-order.748142/#post-5518747
             float4 frag (GeomData i) : SV_Target
             {
-				float4 color = tex2D(_BladeTexture, i.uv);
+				float4 color = lerp(_BaseColor, lerp(_Variation, _TipColor, i.color.b), i.uv.y);
+				if (_WeedRarity > 0) {
+					float scaleX = 1;
+					float scaleY = 1;
+					if (_WeedChannels.z != 0) scaleX = max(-sign(_WeedChannels.z), 0) + _WeedChannels.z * i.color.b;
+					if (_WeedChannels.w != 0) scaleY = max(-sign(_WeedChannels.w), 0) + _WeedChannels.w * i.color.a;
+					if (pow(rand(i.vertex.zxz), _WeedRarity) > 0.5 && scaleX > 0.5 && scaleY > 0.5) color = tex2D(_WeedTexture, i.uv + _WeedTexture_ST.zw);
+					else color *= tex2D(_BladeTexture, i.uv);
+				} else color *= tex2D(_BladeTexture, i.uv);
 
 			#ifdef _MAIN_LIGHT_SHADOWS
 				VertexPositionInputs vertexInput = (VertexPositionInputs)0;
@@ -391,7 +435,7 @@ Shader "Custom/Grass"
 				color *= shadowColor;
 			#endif
 
-                return color * lerp(_BaseColor, lerp(_Variation, _TipColor, i.color.b), i.uv.y);
+                return color;
 			}
 
 			ENDHLSL

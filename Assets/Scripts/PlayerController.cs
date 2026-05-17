@@ -432,9 +432,7 @@ public class PlayerController : MonoBehaviour
     public void Weather(Weathers weather)
     {
         for (byte b = 1; b <= weathersList.Length; b++) weathersList[b - 1].gameObject.SetActive(b == (byte)weather);
-        string nam = $"_WEATHER_{weather.ToString().ToUpper()}";
-        //Debug.Log(nam);
-        weathersMaterial.EnableKeyword(nam);
+        weathersMaterial.SetInt("_ID", (byte)weather);
     }
 
     //Scroll the weather shader to give the illusion of it being in world space
@@ -496,6 +494,7 @@ public class PlayerController : MonoBehaviour
         fov.value = Mathf.RoundToInt(fov.slider.value);
         mainCam.fieldOfView = fov.value;
         SetSlider(fov, "FOV");
+        manager.SetGrass();
     }
 
     //Set all volume
