@@ -72,7 +72,8 @@ public class Manager : MonoBehaviour
         for (byte i = 0; i < grassMaterials.Length; i++) {
             if (grassMaterials[i] == null) continue;
             grassMaterials[i].SetFloat("_BladeSegments", player.grassQuality.value);
-            grassMaterials[i].SetFloat("_GrassLODFade", player.grassLod.value / 10.0f);
+            grassMaterials[i].SetFloat("_GrassLODFade", player.grassLod.value * 0.1f);
+            grassMaterials[i].SetFloat("_FrustrumCull", player.fov.value * 0.05f + 2);
         }
     }
 

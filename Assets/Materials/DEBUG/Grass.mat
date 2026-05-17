@@ -76,6 +76,10 @@ Material:
         m_Texture: {fileID: 0}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
+    - _WeedTexture:
+        m_Texture: {fileID: 2800000, guid: ae0ee4f37b8e0ec44b91918fae8ea16b, type: 3}
+        m_Scale: {x: 3, y: 1.25}
+        m_Offset: {x: 0, y: 0}
     - _WindMap:
         m_Texture: {fileID: 2800000, guid: d1920cf7a1d090740aea24462f83d323, type: 3}
         m_Scale: {x: 1, y: 1}
@@ -94,16 +98,16 @@ Material:
         m_Offset: {x: 0, y: 0}
     m_Ints: []
     m_Floats:
-    - _AddAlpha: 0.4
+    - _AddAlpha: 0.05
     - _AlphaClip: 0
     - _AlphaCutoff: 0
     - _AlphaToMask: 0
     - _BendDelta: 0.1
     - _BladeBendCurve: 1
     - _BladeBendDistance: -0.2
-    - _BladeHeightMax: 0.5
-    - _BladeHeightMin: 0.3
-    - _BladeSegments: 1
+    - _BladeHeightMax: 0.6
+    - _BladeHeightMin: 0.35
+    - _BladeSegments: 2
     - _BladeWidthMax: 0.1
     - _BladeWidthMin: 0.02
     - _Blend: 0
@@ -118,17 +122,21 @@ Material:
     - _Cutoff: 0.5
     - _DetailAlbedoMapScale: 1
     - _DetailNormalMapScale: 1
+    - _Disternce: 6.5
+    - _Dot: 0
     - _DstBlend: 0
     - _DstBlendAlpha: 0
     - _EnvironmentReflections: 1
+    - _FrustrumCull: 5
     - _GlossMapScale: 0
     - _Glossiness: 0
     - _GlossyReflections: 0
     - _GrassChannel: 1
     - _GrassFalloff: 0.5
-    - _GrassLODFade: 32
+    - _GrassLODFade: 24
     - _GrassThreshold: 0.5
     - _Metallic: 0
+    - _MinimumRender: 5
     - _OcclusionStrength: 1
     - _Parallax: 0.005
     - _QueueOffset: 0
@@ -140,19 +148,21 @@ Material:
     - _SrcBlendAlpha: 1
     - _Surface: 0
     - _TessellationGrassDistance: 0.2
+    - _WeedRarity: 250
     - _WindFrequency: 0.011
     - _WorkflowMode: 1
     - _ZWrite: 1
     m_Colors:
     - _BChannelColor: {r: 1, g: 1, b: 1, a: 1}
-    - _BaseColor: {r: 0.06581523, g: 0.2735849, b: 0.08111531, a: 1}
+    - _BaseColor: {r: 0.06581519, g: 0.2735848, b: 0.08111527, a: 1}
     - _Color: {r: 1, g: 1, b: 1, a: 1}
     - _EmissionColor: {r: 0, g: 0, b: 0, a: 1}
     - _GChannelColor: {r: 1, g: 1, b: 1, a: 1}
     - _RChannelColor: {r: 1, g: 1, b: 1, a: 1}
     - _SpecColor: {r: 0.19999996, g: 0.19999996, b: 0.19999996, a: 1}
-    - _TipColor: {r: 0.22018607, g: 0.6981132, b: 0.13501245, a: 1}
-    - _Variation: {r: 0.5187054, g: 0.6698113, b: 0.2748754, a: 1}
+    - _TipColor: {r: 0.220186, g: 0.6981132, b: 0.13501239, a: 1}
+    - _Variation: {r: 0.5187054, g: 0.6698113, b: 0.27487537, a: 1}
+    - _WeedChannels: {r: 0, g: 0, b: 0, a: 0}
     - _WindVelocity: {r: 1, g: 1, b: 1, a: 1.2}
   m_BuildTextureStacks: []
 --- !u!114 &1174918970055503081

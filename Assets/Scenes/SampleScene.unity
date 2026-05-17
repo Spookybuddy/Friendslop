@@ -1578,7 +1578,7 @@ Light:
     m_Type: 2
     m_Resolution: -1
     m_CustomResolution: -1
-    m_Strength: 1
+    m_Strength: 0.9
     m_Bias: 0.05
     m_NormalBias: 0.4
     m_NearPlane: 0.2
@@ -2062,7 +2062,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!4 &517094611
 Transform:
   m_ObjectHideFlags: 0
@@ -3046,7 +3046,6 @@ GameObject:
   - component: {fileID: 730284997}
   - component: {fileID: 730284999}
   - component: {fileID: 730284998}
-  - component: {fileID: 730285000}
   m_Layer: 0
   m_Name: Face
   m_TagString: Untagged
@@ -3119,22 +3118,6 @@ MeshFilter:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 730284996}
   m_Mesh: {fileID: 10210, guid: 0000000000000000e000000000000000, type: 0}
---- !u!114 &730285000
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 730284996}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 575845e5f0ff96043941cb5f325fe4c2, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  player: {fileID: 0}
-  renderCam: {fileID: 1142016289}
-  dist: 0
-  dot: 0
 --- !u!1 &740955522
 GameObject:
   m_ObjectHideFlags: 0
@@ -4298,9 +4281,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: a79441f348de89743a2939f4d699eac1, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  m_RenderShadows: 1
-  m_RequiresDepthTextureOption: 2
-  m_RequiresOpaqueTextureOption: 2
+  m_RenderShadows: 0
+  m_RequiresDepthTextureOption: 0
+  m_RequiresOpaqueTextureOption: 1
   m_CameraType: 0
   m_Cameras: []
   m_RendererIndex: -1
@@ -4339,7 +4322,7 @@ Camera:
   m_GameObject: {fileID: 1142016286}
   m_Enabled: 1
   serializedVersion: 2
-  m_ClearFlags: 1
+  m_ClearFlags: 2
   m_BackGroundColor: {r: 0.19215687, g: 0.3019608, b: 0.4745098, a: 0}
   m_projectionMatrixMode: 1
   m_GateFitMode: 2
@@ -4369,7 +4352,7 @@ Camera:
   m_Depth: 0
   m_CullingMask:
     serializedVersion: 2
-    m_Bits: 4294967295
+    m_Bits: 9
   m_RenderingPath: -1
   m_TargetTexture: {fileID: 8400000, guid: 6d59d43f07d9b9c439957b8f6b5d97ee, type: 2}
   m_TargetDisplay: 0
@@ -5064,7 +5047,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: 3db6981f931c8274fbfc159f62ac01b7, type: 2}
+  - {fileID: 2100000, guid: 52a8d6f3a2338f04cba9559c4c912030, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0

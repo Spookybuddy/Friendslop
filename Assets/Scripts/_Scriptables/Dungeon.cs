@@ -78,6 +78,11 @@ public class Dungeon : ScriptableObject
     [Tooltip("Vertex channel noise scale. X & Y = perlin. Z = noise. -Z inverts the noise.")]
     public Vector3 channelNoiseScale = Vector3.one;
 
+    [Header("Description")]
+    [Tooltip("Text displayed to players.")]
+    [TextArea]
+    public string description;
+
     [ContextMenu("Calculate Weight Sum")]
     public void SumWeights()
     {
