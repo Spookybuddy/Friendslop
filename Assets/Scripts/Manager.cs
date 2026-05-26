@@ -18,11 +18,6 @@ public class Manager : MonoBehaviour
     public RawImage colorDisplay;
     private Color colorPicked;
 
-    private void Awake()
-    {
-        player = GameObject.FindGameObjectWithTag("Player").GetComponentInChildren<PlayerController>();
-    }
-
     private void Update()
     {
         if (!inGame) {

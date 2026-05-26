@@ -104,10 +104,10 @@ Material:
     - _AlphaToMask: 0
     - _BendDelta: 0
     - _BladeBendCurve: 1
-    - _BladeBendDistance: -0.2
+    - _BladeBendDistance: 0.2
     - _BladeHeightMax: 0.6
     - _BladeHeightMin: 0.35
-    - _BladeSegments: 2
+    - _BladeSegments: 1
     - _BladeWidthMax: 0.1
     - _BladeWidthMin: 0.02
     - _Blend: 0

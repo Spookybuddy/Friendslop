@@ -107,7 +107,7 @@ Material:
     - _BladeBendDistance: -0.2
     - _BladeHeightMax: 0.6
     - _BladeHeightMin: 0.35
-    - _BladeSegments: 2
+    - _BladeSegments: 1
     - _BladeWidthMax: 0.1
     - _BladeWidthMin: 0.02
     - _Blend: 0
@@ -133,7 +133,7 @@ Material:
     - _GlossyReflections: 0
     - _GrassChannel: 1
     - _GrassFalloff: 0.5
-    - _GrassLODFade: 24
+    - _GrassLODFade: 16
     - _GrassThreshold: 0.5
     - _Metallic: 0
     - _MinimumRender: 5

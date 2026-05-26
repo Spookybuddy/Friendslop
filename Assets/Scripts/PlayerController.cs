@@ -3,11 +3,14 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.UI;
+using FishNet.Connection;
+using FishNet.Object;
 
-public class PlayerController : MonoBehaviour
+public class PlayerController : NetworkBehaviour
 {
     [Header("Camera")]
     public Transform head;
+    public Transform face;
     public Camera mainCam;
     private const float HeadHeight = 0.625f;
     public ParticleSystem[] weathersList;
@@ -88,9 +91,31 @@ public class PlayerController : MonoBehaviour
     private bool holdingFurniture;
     private bool validFurniture;
 
+    public override void OnStartClient()
+    {
+        base.OnStartClient();
+        if (base.IsOwner) {
+            mainCam = Camera.main;
+            mainCam.transform.SetParent(face);
+            mainCam.transform.SetLocalPositionAndRotation(Vector3.zero, Quaternion.identity);
+            Startup();
+        } else {
+            GetComponent<PlayerInput>().enabled = false;
+            this.enabled = false;
+        }
+    }
+
     public void Start()
     {
-        if (manager == null) manager = GameObject.FindGameObjectWithTag("GameController").GetComponent<Manager>();
+        //Startup();
+    }
+
+    private void Startup()
+    {
+        if (manager == null) {
+            manager = GameObject.FindGameObjectWithTag("GameController").GetComponent<Manager>();
+            manager.player = this;
+        }
         Cursor.lockState = CursorLockMode.Locked;
 
         //Load up fps settings
