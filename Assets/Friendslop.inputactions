@@ -309,7 +309,7 @@
                 {
                     "name": "3D Vector",
                     "id": "be9b9321-00ff-4f0a-87bd-ac6d23c545aa",
-                    "path": "3DVector",
+                    "path": "3DVector(mode=2)",
                     "interactions": "",
                     "processors": "",
                     "groups": "",
@@ -318,31 +318,9 @@
                     "isPartOfComposite": false
                 },
                 {
-                    "name": "up",
-                    "id": "0764f807-b9f5-4296-9a1b-4bc2d5bd5111",
-                    "path": "<Keyboard>/1",
-                    "interactions": "",
-                    "processors": "",
-                    "groups": "",
-                    "action": "Item Hotkey",
-                    "isComposite": false,
-                    "isPartOfComposite": true
-                },
-                {
-                    "name": "down",
-                    "id": "82b75c64-2b88-4893-9cfd-d232550da4c5",
-                    "path": "<Keyboard>/2",
-                    "interactions": "",
-                    "processors": "",
-                    "groups": "",
-                    "action": "Item Hotkey",
-                    "isComposite": false,
-                    "isPartOfComposite": true
-                },
-                {
                     "name": "right",
                     "id": "4d41e07b-f122-45d2-9ee0-491c94d87b78",
-                    "path": "<Keyboard>/3",
+                    "path": "<Keyboard>/1",
                     "interactions": "",
                     "processors": "",
                     "groups": "",
@@ -353,6 +331,28 @@
                 {
                     "name": "left",
                     "id": "3df18f5c-4ad1-4cb2-b004-647f65bedff3",
+                    "path": "<Keyboard>/2",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": "",
+                    "action": "Item Hotkey",
+                    "isComposite": false,
+                    "isPartOfComposite": true
+                },
+                {
+                    "name": "up",
+                    "id": "0764f807-b9f5-4296-9a1b-4bc2d5bd5111",
+                    "path": "<Keyboard>/3",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": "",
+                    "action": "Item Hotkey",
+                    "isComposite": false,
+                    "isPartOfComposite": true
+                },
+                {
+                    "name": "down",
+                    "id": "82b75c64-2b88-4893-9cfd-d232550da4c5",
                     "path": "<Keyboard>/4",
                     "interactions": "",
                     "processors": "",

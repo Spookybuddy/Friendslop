@@ -17,6 +17,7 @@ public class PlayerController : NetworkBehaviour
     public Material weathersMaterial;
     public Manager manager;
     private float weatherOffset = 0;
+    public GameObject eventSystem;
 
     [Header("Prefs")]
     public GameObject pausedScreen;
@@ -32,7 +33,7 @@ public class PlayerController : NetworkBehaviour
     public UISetting voiceVolume;
     public UISetting grassQuality;
     public UISetting grassLod;
-    public Color playerColor;
+    public Color playerColor = Color.clear;
     public string lastColor = "FFFFFF";
 
     [Header("Controls")]
@@ -77,8 +78,8 @@ public class PlayerController : NetworkBehaviour
     [Header("Inventory")]
     public Transform holdPosition;
     public byte playerStrength = 10;
-    public Transform selectionShellObject;
-    public MeshFilter selectionShellMesh;
+    //public Transform selectionShellObject;
+    //public MeshFilter selectionShellMesh;
     public GameObject interactWith;
     public byte heldItemIndex;
     public Prop[] inventory = new Prop[5];
@@ -87,13 +88,25 @@ public class PlayerController : NetworkBehaviour
     public float buildupRate = 2;
     public float throwThreshold = 0.25f;
     public LayerMask interactLayers;
-    public Transform interactIcon;
+    //public Transform interactIcon;
     private bool holdingFurniture;
     private bool validFurniture;
+
+    public void ColorDebug(string msg, string hex)
+    {
+        if (ColorUtility.TryParseHtmlString($"#{lastColor}", out _)) Debug.Log($"<color=#{hex}>{msg}</color>");
+    }
+
+    public void ColorDebug(string msg, Color col)
+    {
+        Debug.Log($"<color=#{ColorUtility.ToHtmlStringRGB(col)}>{msg}</color>");
+    }
 
     public override void OnStartClient()
     {
         base.OnStartClient();
+        ColorDebug("Player joined", "009999");
+        ChangeColorServer(playerColor);
         if (base.IsOwner) {
             mainCam = Camera.main;
             mainCam.transform.SetParent(face);
@@ -101,13 +114,39 @@ public class PlayerController : NetworkBehaviour
             Startup();
         } else {
             GetComponent<PlayerInput>().enabled = false;
+            eventSystem.SetActive(false);
             this.enabled = false;
         }
     }
 
-    public void Start()
+    public override void OnStopClient()
     {
-        //Startup();
+        Debug.Log($"Exit network. Return to title screen...");
+        DetachCamera();
+        base.OnStopClient();
+    }
+
+    public override void OnStopServer()
+    {
+        Debug.Log($"Server closed. Return to title screen...");
+        DetachCamera();
+        base.OnStopServer();
+    }
+
+    private void OnDestroy()
+    {
+        DetachCamera();
+    }
+
+    private void Awake()
+    {
+        ColorDebug("Player awakens", "990099");
+        GameObject[] others = GameObject.FindGameObjectsWithTag("Player");
+        for (byte p = 0; p < others.Length; p++) {
+            if (others[p].TryGetComponent<PlayerController>(out PlayerController player)) {
+                if (player.playerColor != Color.clear) player.ChangeColorServer(player.playerColor);
+            }
+        }
     }
 
     private void Startup()
@@ -124,10 +163,10 @@ public class PlayerController : NetworkBehaviour
 
         //Load up vsync settings
         int v = ReadPref("Vsync");
-        if (v != 0) Sync(1);
+        if (v != 0) VSync(1);
         else {
             vsyncToggle.isOn = false;
-            Sync(0);
+            VSync(0);
         }
 
         //Load up fov settings
@@ -162,8 +201,7 @@ public class PlayerController : NetworkBehaviour
         if (PlayerPrefs.HasKey("Color")) lastColor = PlayerPrefs.GetString("Color");
         if (ColorUtility.TryParseHtmlString($"#{lastColor}", out Color c)) {
             playerColor = c;
-            GetComponent<Renderer>().material.color = playerColor;
-            Debug.Log("Colro");
+            ChangeColorServer(c);
         }
     }
 
@@ -173,39 +211,6 @@ public class PlayerController : NetworkBehaviour
         if (interacting) {
             InteractionCycle();
             return;
-        }
-
-        //Pause cant move
-        if (paused) return;
-
-        //Looking at raycast
-        if (Physics.SphereCast(head.position, 0.05f, head.forward, out RaycastHit interact, 2.95f, interactLayers)) {
-            if (!interactIcon.gameObject.activeSelf) interactIcon.gameObject.SetActive(true);
-            if (interactWith == null || interactWith != interact.collider.gameObject) interactWith = interact.collider.gameObject;
-            if (interact.collider.gameObject.TryGetComponent<MeshFilter>(out MeshFilter m)) {
-                if (selectionShellMesh.mesh != m.mesh) {
-                    selectionShellMesh.mesh = m.mesh;
-                    selectionShellObject.SetParent(interact.collider.transform, false);
-                }
-            }
-            interactIcon.position = interact.point;
-        } else {
-            if (interactIcon.gameObject.activeSelf) interactIcon.gameObject.SetActive(false);
-            if (interactWith != null) interactWith = null;
-            if (selectionShellMesh.mesh != null) selectionShellMesh.mesh = null;
-        }
-
-        //Furniture placement raycast
-        if (holdingFurniture) {
-            Furniture decor = inventory[heldItemIndex].GetComponent<Furniture>();
-            if (Physics.Raycast(head.position, head.forward, out RaycastHit place, 5, groundLayers)) {
-                validFurniture = decor.MoveOutline(place);
-                if (validFurniture) {
-                    if (!decor.visible) decor.Outline(true);
-                } else if (decor.visible) decor.Outline(false);
-            } else if (decor.visible) {
-                decor.Outline(false);
-            }
         }
 
         //Launch stun
@@ -271,9 +276,6 @@ public class PlayerController : NetworkBehaviour
             }
         }
 
-        //Throwing
-        if (dropping) throwTimer = Mathf.Clamp(throwTimer + Time.deltaTime * buildupRate, 0, buildupRate * 2);
-
         //Movement logic
         if (moving || wasLaunched) {
             float moveMulti = moveSpeed * Time.deltaTime;
@@ -297,6 +299,43 @@ public class PlayerController : NetworkBehaviour
             if (dot > 0.1f || dot < -0.1f) ScrollWeather(dot * movementDir.magnitude * moveSpeed * 2.5f);
             transform.position += movementDir;
         }
+
+        //Pause cant input
+        if (paused) return;
+
+        //Looking at raycast
+        if (Physics.SphereCast(head.position, 0.05f, head.forward, out RaycastHit interact, 2.95f, interactLayers)) {
+            //if (!interactIcon.gameObject.activeSelf) interactIcon.gameObject.SetActive(true);
+            if (interactWith == null || interactWith != interact.collider.gameObject) interactWith = interact.collider.gameObject;
+            /*if (interact.collider.gameObject.TryGetComponent<MeshFilter>(out MeshFilter m)) {
+                if (selectionShellMesh.mesh != m.mesh) {
+                    selectionShellMesh.mesh = m.mesh;
+                    selectionShellObject.SetParent(interact.collider.transform, false);
+                }
+            }
+            */
+            //interactIcon.position = interact.point;
+        } else {
+            //if (interactIcon.gameObject.activeSelf) interactIcon.gameObject.SetActive(false);
+            if (interactWith != null) interactWith = null;
+            //if (selectionShellMesh.mesh != null) selectionShellMesh.mesh = null;
+        }
+
+        //Furniture placement raycast
+        if (holdingFurniture) {
+            Furniture decor = inventory[heldItemIndex].GetComponent<Furniture>();
+            if (Physics.Raycast(head.position, head.forward, out RaycastHit place, 5, groundLayers)) {
+                validFurniture = decor.MoveOutline(place);
+                if (validFurniture) {
+                    if (!decor.visible) decor.Outline(true);
+                } else if (decor.visible) decor.Outline(false);
+            } else if (decor.visible) {
+                decor.Outline(false);
+            }
+        }
+
+        //Throwing
+        if (dropping) throwTimer = Mathf.Clamp(throwTimer + Time.deltaTime * buildupRate, 0, buildupRate * 2);
 
         //Crouch head move
         if (isSneaking) {
@@ -436,7 +475,7 @@ public class PlayerController : NetworkBehaviour
         //Yaw
         Vector2 flat = new Vector2(target.forward.x, target.forward.z).normalized;
         Vector2 xing = new Vector2(target.right.x, target.right.z).normalized;
-        Vector2 look = new Vector2(transform.forward.x , transform.forward.z);
+        Vector2 look = new Vector2(transform.forward.x, transform.forward.z);
         float dot = 1 - Vector2.Dot(look, flat);
         sbyte sign = (sbyte)-Mathf.Sign(Vector2.Dot(look, xing));
         if (dot > 0.001f) transform.Rotate(Vector3.up, t * Time.deltaTime * 360 * dot * sign);
@@ -451,6 +490,14 @@ public class PlayerController : NetworkBehaviour
     public void ExitGame()
     {
         Debug.Log($"Exit to main menu");
+    }
+
+    //Detaches camera from player
+    public void DetachCamera()
+    {
+        if (mainCam == null) return;
+        mainCam.transform.parent = null;
+        mainCam.transform.SetPositionAndRotation(Vector3.up * 3, Quaternion.identity);
     }
 
     //Get/Set weather to/from manager
@@ -502,11 +549,11 @@ public class PlayerController : NetworkBehaviour
     public void ToggleVsync()
     {
         useVsync = (byte)((useVsync + 1) % 2);
-        Sync(useVsync);
+        VSync(useVsync);
     }
 
     //Set the vsync
-    private void Sync(byte sync)
+    private void VSync(byte sync)
     {
         useVsync = sync;
         QualitySettings.vSyncCount = sync;
@@ -560,16 +607,32 @@ public class PlayerController : NetworkBehaviour
         manager.SetGrass();
     }
 
+    //Color is the only setting that has to be synced across players
+    #region Color
     //Set player color
     public void ChangeColor(Color input)
     {
         lastColor = ColorUtility.ToHtmlStringRGB(input);
         playerColor = input;
-        GetComponent<Renderer>().material.color = playerColor;
+        //GetComponent<Renderer>().material.color = playerColor;
         SetPref("Color", lastColor);
+        ChangeColorServer(playerColor);
     }
 
-    //update a slider
+    [ServerRpc]
+    public void ChangeColorServer(Color c)
+    {
+        ChangeColorClient(c);
+    }
+
+    [ObserversRpc]
+    public void ChangeColorClient(Color c)
+    {
+        GetComponent<Renderer>().material.color = c;
+    }
+    #endregion
+
+    //Update a slider
     private void SetSlider(UISetting settings, string key)
     {
         settings.slider.value = settings.value;
@@ -577,7 +640,7 @@ public class PlayerController : NetworkBehaviour
         SetPref(key, settings.value);
     }
 
-    //initialize ui settings
+    //Initialize ui settings
     private void InitSlider(UISetting settings, string key, int value)
     {
         settings.value = ReadPref(key);
@@ -604,6 +667,7 @@ public class PlayerController : NetworkBehaviour
         PlayerPrefs.SetString(key, value);
     }
 
+    //Gets player's saved resolution
     private double ReadResolution()
     {
         if (PlayerPrefs.HasKey("Resolution")) {
@@ -651,6 +715,10 @@ public class PlayerController : NetworkBehaviour
     //Movement input
     public void Movement(InputAction.CallbackContext ctx)
     {
+        if (paused) {
+            moving = false;
+            return;
+        }
         if (ctx.started) moving = true;
         movementInput = ctx.ReadValue<Vector2>();
         if (ctx.canceled) moving = false;
@@ -693,6 +761,7 @@ public class PlayerController : NetworkBehaviour
     //Grab input
     public void Grab(InputAction.CallbackContext ctx)
     {
+        if (paused) return;
         if (ctx.started) {
             if (interactWith != null) {
                 //Check if player can actually hold an item
@@ -722,6 +791,7 @@ public class PlayerController : NetworkBehaviour
     //Drop input
     public void Drop(InputAction.CallbackContext ctx)
     {
+        if (paused) return;
         //If holding item, start building throw charge to be applied on release of button
         if (ctx.started && inventory[heldItemIndex] != null) dropping = true;
         if (ctx.canceled && dropping && inventory[heldItemIndex] != null) {
@@ -747,17 +817,17 @@ public class PlayerController : NetworkBehaviour
     }
 
     //Hotkey
-    public bool Hotkey(InputAction.CallbackContext ctx)
+    public void Hotkey(InputAction.CallbackContext ctx)
     {
-        if (holdingFurniture) return false;
+        if (holdingFurniture) return;
         Vector3 input = ctx.ReadValue<Vector3>();
-        if (input.y > 0) return UpdateItemHeld(0);
-        if (input.y < 0) return UpdateItemHeld(1);
-        if (input.x > 0) return UpdateItemHeld(2);
-        if (input.x < 0) return UpdateItemHeld(3);
-        if (input.z > 0) return UpdateItemHeld(4);
-        //if (input.z < 0) return UpdateItemHeld(5);
-        return false;
+        for (byte i = 0; i < 5; i++) {
+            //check signs of x y z silly
+            if (Mathf.Sign(0.5f - i % 2) * input[i / 2] > 0) {
+                UpdateItemHeld(i);
+                return;
+            }
+        }
     }
     #endregion
 }

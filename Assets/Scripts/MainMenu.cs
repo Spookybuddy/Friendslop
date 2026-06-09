@@ -1,21 +1,38 @@
 using UnityEngine;
+using UnityEngine.SceneManagement;
+using System.Collections;
 
 public class MainMenu : MonoBehaviour
 {
     public Material weathersMaterial;
+    public GameObject networkManager;
+    public string loadScene;
 
     private void Awake()
     {
-        weathersMaterial.EnableKeyword("_WEATHER_NONE");
+        weathersMaterial.SetInt("_ID", 0);
     }
 
-    public void Singleplayer()
+    //Start server, then client immediately after
+    public void Host()
     {
-        Debug.Log("Singleplayer");
+        StartCoroutine(Load(loadScene));
     }
 
-    public void Multiplayer()
+    //Client
+    public void Join()
     {
-        Debug.Log("Connect to server");
+        StartCoroutine(Load(loadScene));
+    }
+
+    private IEnumerator Load(string scene)
+    {
+        //DontDestroyOnLoad(networkManager);
+        AsyncOperation asyncLoad = SceneManager.LoadSceneAsync(scene);
+        while (!asyncLoad.isDone) {
+            float progress = Mathf.Clamp01(asyncLoad.progress / 0.9f);
+            Debug.Log(progress);
+            yield return null;
+        }
     }
 }

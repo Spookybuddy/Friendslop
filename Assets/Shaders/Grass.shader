@@ -351,14 +351,14 @@ Shader "Custom/Grass"
 					float falloff = smoothstep(_GrassThreshold, _GrassThreshold + _GrassFalloff, grassVisibility);
 					float channel = lerp(_AddAlpha, 1, input[0].color.a);
 
-					//Personal culling at distance
+					// Personal culling at distance
 					if (distance(_WorldSpaceCameraPos, pos) > _CullGrassDistance) return;
 
 					float width  = lerp(_BladeWidthMin, _BladeWidthMax, rand(pos.xzy) * falloff);
 					float height = lerp(_BladeHeightMin, _BladeHeightMax, rand(pos.zyx) * falloff);
 					float forward = rand(pos.yyz) * _BladeBendDistance;
 
-					//Weeds are bigger 
+					// Weeds are bigger 
 					if (_WeedRarity > 0) {
 						float scaleX = 1;
 						float scaleY = 1;
