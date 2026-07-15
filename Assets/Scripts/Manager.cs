@@ -4,13 +4,16 @@ using UnityEngine.UI;
 
 public class Manager : MonoBehaviour
 {
+    public bool generating = false;
     public bool inGame = false;
     public float gameTime = 0;
     public DungeonGeneration generation;
     public List<Dungeon> dungeons = new List<Dungeon>();
     private byte dungeonIndex = 0;
+
     public Material fogMaterial;
     public Material[] grassMaterials = new Material[2];
+    [HideInInspector]
     public PlayerController player;
     [Header("Interaction Objects")]
     public GameObject dungeonSelectObject;
@@ -23,6 +26,7 @@ public class Manager : MonoBehaviour
         if (!inGame) {
             if (generation.dungeonGenerated) {
                 inGame = true;
+                generating = false;
                 gameTime = 0;
                 SetFog(generation.dungeon.atmospheres[generation.atmoID].fog);
                 player.SetSnowDepth(generation.snowRayLength);
@@ -32,6 +36,7 @@ public class Manager : MonoBehaviour
             gameTime += Time.deltaTime;
         }
 
+        //Color picker
         if (colorPickerObject.activeSelf) {
             if (Physics.Raycast(player.head.position, player.head.forward, out RaycastHit picker, 5, 32)) {
                 Texture2D tex = picker.transform.GetComponent<Renderer>().material.mainTexture as Texture2D;
@@ -42,14 +47,31 @@ public class Manager : MonoBehaviour
     }
 
     [ContextMenu("Generate")]
-    public void NextRound()
+    public void ContextGenerate()
     {
+        NextRound((int)Random.Range(-2147483648, 2147483647f));
+    }
+
+    public void NextRound(int seed)
+    {
+        if (generating || inGame) return;
         inGame = false;
+        generating = true;
         generation.dungeon = dungeons[dungeonIndex];
-        generation.seed = (int)Random.Range(-2147483648, 2147483647f);
+        generation.seed = seed;
         generation.Routine();
         grassMaterials[1] = generation.GetGrassMat();
         SetGrass();
+    }
+
+    //Delete that shit
+    public void Clear()
+    {
+        Debug.LogError($"Manager wiped");
+        generation.ClearDungeon();
+        inGame = false;
+        gameTime = 0;
+        generating = false;
     }
 
     //Change the fog settings
@@ -72,6 +94,15 @@ public class Manager : MonoBehaviour
         }
     }
 
+    public void Embark()
+    {
+        if (player.interacting) player.FreePlayer();
+        //Make sure to match dungeons lmao
+        generation.seed = (int)Random.Range(-2147483648, 2147483647f);
+        player.ShareSeedServer(generation.seed);
+        ToggleDungeonSelect(false);
+    }
+
     public void ToggleDungeonSelect(bool toggle)
     {
         dungeonSelectObject.SetActive(toggle);
@@ -86,7 +117,7 @@ public class Manager : MonoBehaviour
     public void SelectDungeon(byte add)
     {
         //Should check that all players have matching dungeons (some unique value generated per object?)
-        dungeonIndex = (byte)((dungeonIndex + add) % 255);
+        //dungeonIndex = (byte)((dungeonIndex + add) % 255);
     }
 
     //Set player color

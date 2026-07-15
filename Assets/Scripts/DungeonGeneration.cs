@@ -158,6 +158,14 @@ public class DungeonGeneration : MonoBehaviour
         executing = StartCoroutine(Generate());
     }
 
+    //Clear dungeon
+    public void ClearDungeon()
+    {
+        dungeonGenerated = false;
+        if (dungeonTileParent != null) Destroy(dungeonTileParent.gameObject);
+        for (byte i = 0; i < chunks.Length; i++) Destroy(chunks[i]);
+    }
+
     //Frame delayed generation
     public IEnumerator Generate()
     {

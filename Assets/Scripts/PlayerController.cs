@@ -5,6 +5,8 @@ using UnityEngine.InputSystem;
 using UnityEngine.UI;
 using FishNet.Connection;
 using FishNet.Object;
+using FishNet.Managing;
+using FishNet.Transporting;
 
 public class PlayerController : NetworkBehaviour
 {
@@ -35,6 +37,7 @@ public class PlayerController : NetworkBehaviour
     public UISetting grassLod;
     public Color playerColor = Color.clear;
     public string lastColor = "FFFFFF";
+    public Renderer modelRenderer;
 
     [Header("Controls")]
     public bool paused;
@@ -105,7 +108,7 @@ public class PlayerController : NetworkBehaviour
     public override void OnStartClient()
     {
         base.OnStartClient();
-        ColorDebug("Player joined", "009999");
+
         ChangeColorServer(playerColor);
         if (base.IsOwner) {
             mainCam = Camera.main;
@@ -113,6 +116,7 @@ public class PlayerController : NetworkBehaviour
             mainCam.transform.SetLocalPositionAndRotation(Vector3.zero, Quaternion.identity);
             Startup();
         } else {
+            //Rather than disabling it keep it for snow update?
             GetComponent<PlayerInput>().enabled = false;
             eventSystem.SetActive(false);
             this.enabled = false;
@@ -123,6 +127,7 @@ public class PlayerController : NetworkBehaviour
     {
         Debug.Log($"Exit network. Return to title screen...");
         DetachCamera();
+        if (base.IsOwner) UnloadDungeon();
         base.OnStopClient();
     }
 
@@ -140,21 +145,30 @@ public class PlayerController : NetworkBehaviour
 
     private void Awake()
     {
-        ColorDebug("Player awakens", "990099");
+        if (manager == null) {
+            manager = GameObject.FindGameObjectWithTag("GameController").GetComponent<Manager>();
+            manager.player = this;
+        }
+
+        //Tell all other players to send in their colors
         GameObject[] others = GameObject.FindGameObjectsWithTag("Player");
         for (byte p = 0; p < others.Length; p++) {
             if (others[p].TryGetComponent<PlayerController>(out PlayerController player)) {
+                if (player.Equals(this)) continue;
                 if (player.playerColor != Color.clear) player.ChangeColorServer(player.playerColor);
+                //See if there's a dungeon open already from other players
+                if (!manager.inGame || !manager.generating) {
+                    if (player.manager.inGame || player.manager.generating) {
+                        ColorDebug("THERES ALREADY A GAME GOING ON HOLD ON LET ME SNAG THAT SEED AND GENERATE THE DUNGEON AND SYNC UP REAL QUICK", "AAC418");
+                        player.ShareSeedServer(player.manager.generation.seed);
+                    }
+                }
             }
         }
     }
 
     private void Startup()
     {
-        if (manager == null) {
-            manager = GameObject.FindGameObjectWithTag("GameController").GetComponent<Manager>();
-            manager.player = this;
-        }
         Cursor.lockState = CursorLockMode.Locked;
 
         //Load up fps settings
@@ -179,7 +193,6 @@ public class PlayerController : NetworkBehaviour
         for (int i = 0; i < resolutions.Length; i++) list.Insert(0, resolutions[i].ToString());
         resolutionDropdown.AddOptions(list);
         double hertz = ReadResolution();
-        //Debug.Log($"<color=#009999>{Display.main.systemWidth} x {Display.main.systemHeight} @ {Screen.currentResolution.refreshRateRatio}Hz</color>");
         for (int i = 0; i < resolutions.Length; i++) {
             if (resolutions[i].Equals(saved) || (resolutions[i].width.Equals(saved.width) && resolutions[i].height.Equals(saved.height) && resolutions[i].refreshRateRatio.value.Equals(hertz))) {
                 resolutionDropdown.value = resolutions.Length - 1 - i;
@@ -207,6 +220,18 @@ public class PlayerController : NetworkBehaviour
 
     public void Update()
     {
+        //Snow non owner
+        if (!base.IsOwner) {
+            return;
+            if (snowDepth > 0) {
+                if (Physics.Raycast(transform.position, Vector3.down, out RaycastHit snow, snowDepth, 512)) {
+                    if (snow.collider.gameObject.TryGetComponent<SnowySurface>(out SnowySurface script)) {
+                        script.Carve(snow.triangleIndex * 3, 90 * Time.deltaTime * snow.barycentricCoordinate);
+                    }
+                }
+            }
+        }
+
         //Separate interpretation when interacting
         if (interacting) {
             InteractionCycle();
@@ -489,7 +514,26 @@ public class PlayerController : NetworkBehaviour
     //Return to main menu
     public void ExitGame()
     {
-        Debug.Log($"Exit to main menu");
+        if (!paused) return;
+        
+    }
+
+    [ServerRpc]
+    public void ShareSeedServer(int seed)
+    {
+        ShareSeedClient(seed);
+    }
+
+    [ObserversRpc]
+    public void ShareSeedClient(int seed)
+    {
+        ColorDebug($"Seed: {seed}", "995512");
+        manager.NextRound(seed);
+    }
+
+    public void UnloadDungeon()
+    {
+        manager.Clear();
     }
 
     //Detaches camera from player
@@ -526,7 +570,6 @@ public class PlayerController : NetworkBehaviour
     public void ChangeResolution()
     {
         int id = resolutions.Length - 1 - resolutionDropdown.value;
-        Debug.Log(resolutions[id]);
         Screen.SetResolution(resolutions[id].width, resolutions[id].height, Screen.fullScreenMode, resolutions[id].refreshRateRatio);
         SetResolution(resolutions[id]);
     }
@@ -628,7 +671,8 @@ public class PlayerController : NetworkBehaviour
     [ObserversRpc]
     public void ChangeColorClient(Color c)
     {
-        GetComponent<Renderer>().material.color = c;
+        //GetComponent<Renderer>().material.color = c;
+        modelRenderer.material.color = c * 1.41421f;
     }
     #endregion
 
@@ -728,8 +772,10 @@ public class PlayerController : NetworkBehaviour
     public void Jump(InputAction.CallbackContext ctx)
     {
         if (interacting) {
-            //Minigame input
-            interact.JumpInput();
+            if (ctx.started) {
+                interact.JumpInput();
+                hasJumped = true;
+            }
         } else if (!hasJumped) {
             risingJump = true;
             hasJumped = true;
@@ -750,7 +796,7 @@ public class PlayerController : NetworkBehaviour
     public void Sneak(InputAction.CallbackContext ctx)
     {
         if (interacting) {
-            FreePlayer();
+            if (ctx.started) FreePlayer();
             return;
         }
         isSprinting = false;
