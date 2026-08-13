@@ -22,26 +22,30 @@ public struct MeshChunk
     public Vector2[] uvs;
     public int[] triangles;
     public Vector3[] normals;
+    public Color[] colors;
     public Mesh chunk;
     public MeshChunk(int scale, int tris)
     {
         vertices = new Vector3[scale];
         normals = new Vector3[scale];
+        colors = new Color[scale];
         uvs = new Vector2[scale];
         triangles = new int[tris];
         chunk = new Mesh();
     }
-    public readonly void Verts(int i, int x, int z, Vector3 pos, Vector3 norm)
+    public readonly void Verts(int i, int x, int z, Vector3 pos, Vector3 norm, Color col)
     {
         vertices[i] = pos;
         uvs[i] = new Vector2(x, z);
         normals[i] = norm;
+        colors[i] = col;
     }
     public readonly void Create() {
         chunk.vertices = vertices;
         chunk.SetUVs(0, uvs);
         chunk.triangles = triangles;
         chunk.normals = normals;
+        chunk.colors = colors;
         //chunk.RecalculateNormals();
         chunk.Optimize();
     }
@@ -70,6 +74,8 @@ public class DungeonGeneration : MonoBehaviour
     public NavMeshSurface navMeshSurface;
     [Tooltip("Parent object for out of bounds chunks")]
     public Transform terrain;
+    [Tooltip("Doorway for the yard")]
+    public Transform yardEntrance;
     [HideInInspector]
     public GameObject[] chunks;
     private MeshChunk[] chunkData;
@@ -108,23 +114,19 @@ public class DungeonGeneration : MonoBehaviour
     [Header("Map")]
     public Camera mapCam;
 
-    public void Start()
-    {
-        quality = Mathf.Max(dungeon.quality, nomialSize);
-    }
-
     //Reset vars and generate
     [ContextMenu("Generate")]
-    public void Routine()
+    public void Routine(float recycledTime = 0)
     {
         rng = new System.Random(seed);
         Random.InitState(seed);
         if (dungeonTileParent != null) Destroy(dungeonTileParent.gameObject);
+        quality = Mathf.Max(dungeon.quality, nomialSize);
         tileID = 0;
         currentSize = 0;
         generationTime = 0;
         connectionTime = 0;
-        totalTime = 0;
+        totalTime = recycledTime;
         byte doors = 0;
         for (byte i = 0; i < dungeon.tileset.Length; i++) {
             avgDist += dungeon.tileset[i].tile.spawnSpacing;
@@ -154,6 +156,14 @@ public class DungeonGeneration : MonoBehaviour
         destroyDoorways.Clear();
         if (executing != null) StopCoroutine(executing);
         executing = StartCoroutine(Generate());
+    }
+
+    //Clear dungeon
+    public void ClearDungeon()
+    {
+        dungeonGenerated = false;
+        if (dungeonTileParent != null) Destroy(dungeonTileParent.gameObject);
+        for (byte i = 0; i < chunks.Length; i++) Destroy(chunks[i]);
     }
 
     //Frame delayed generation
@@ -205,6 +215,7 @@ public class DungeonGeneration : MonoBehaviour
                 if (dungeon.minimumSurfaceArea > currentSize) {
                     Debug.LogWarning($"Bad seed, trying next seed");
                     seed++;
+                    watch.Stop();
                     Routine();
                     yield break;
                 } else Debug.Log($"Dungeon was large enough");
@@ -300,6 +311,11 @@ public class DungeonGeneration : MonoBehaviour
             tileID++;
         }
         generationTime = watch.ElapsedMilliseconds / 1000f;
+
+        //Connect to the yard
+        Transform reversed = Instantiate(tileParent, dungeonTileParent).transform;
+        reversed.localEulerAngles = new Vector3(0, 180, 0);
+        CreatePath(reversed, yardEntrance, dungeonTileParent, 3, "Enter", Vector3.Scale(new Vector3(2.5f, 0, 2.5f), Random.insideUnitSphere));
         
         //Connect random open doors to other ones nearby
         if (dungeon.moreConnections) {
@@ -378,6 +394,7 @@ public class DungeonGeneration : MonoBehaviour
         mapCam.enabled = false;
 
         //Create the forest
+        #region Forest
         if (terrain != null) {
             //Reset rng to ensure its the same just in case
             rng = new System.Random(seed);
@@ -385,7 +402,7 @@ public class DungeonGeneration : MonoBehaviour
 
             //Take the arbitrary dimensions of the navmesh and create chunked terrain to fill it in
             extents = new Vector3(Mathf.Ceil(extents.x) * 2, Mathf.Ceil(extents.y), Mathf.Ceil(extents.z) * 2);
-            extents = new Vector3(extents.x + (SIZE - 1) - extents.x % SIZE, extents.y, extents.z + (SIZE - 1) - extents.z % SIZE);
+            extents = new Vector3(extents.x + (dungeon.extraChunks * SIZE - 1) - extents.x % SIZE, extents.y, extents.z + (dungeon.extraChunks * SIZE - 1) - extents.z % SIZE);
             center += new Vector3(extents.x / 2, 0, extents.z / 2);
             int X = (int)extents.x, Z = (int)extents.z;
             int X_ = X + 1, X__ = X + 2, Z_ = Z + 1, Z__ = Z + 2;
@@ -423,72 +440,48 @@ public class DungeonGeneration : MonoBehaviour
                     pos = terrain.InverseTransformPoint(HitCheck(terrain.TransformPoint(pos), extents.y * 2));
                     if (pos.y > center.y - extents.y) {
                         points.Add(new Point(x, z));
-                        yValues[index] = new Vector3(-1, pos.y, 0);
+                        yValues[index] = Vector3.up * pos.y;
                     } else yValues[index] = new Vector3(1, pos.y, 1);
-                    //X = has been set, Y = value, Z = perlin multiplier
+                    //X = Ring (negative when set), Y = value, Z = perlin multiplier
                 }
             }
 
             //Update the rest of the heights not set from raycast
             Point checkpoint = points[^1];
-            sbyte ring = (sbyte)(dungeon.extra0Point ? -1 : 0);
+            int ring = (dungeon.extra0Point ? -1 : 0);
             float value = 0;
             while (points.Count > 0) {
                 //Add adjacent points to list
                 int index = points[0].x * Z__ + points[0].z;
-                if (index + Z__ < yValues.Length) CheckPoint(Z__, points[0].x + 1, points[0].z, yValues[index].y, value);
-                if (index - Z__ > -1) CheckPoint(Z__, points[0].x - 1, points[0].z, yValues[index].y, value);
-                if ((index + 1) % Z__ != 0) CheckPoint(Z__, points[0].x, points[0].z + 1, yValues[index].y, value);
-                if (index % Z__ != 0) CheckPoint(Z__, points[0].x, points[0].z - 1, yValues[index].y, value);
+                if (index + Z__ < yValues.Length) CheckPoint(Z__, points[0].x + 1, points[0].z, yValues[index].y, value, ring);
+                if (index - Z__ > -1) CheckPoint(Z__, points[0].x - 1, points[0].z, yValues[index].y, value, ring);
+                if ((index + 1) % Z__ != 0) CheckPoint(Z__, points[0].x, points[0].z + 1, yValues[index].y, value, ring);
+                if (index % Z__ != 0) CheckPoint(Z__, points[0].x, points[0].z - 1, yValues[index].y, value, ring);
 
                 //When marked point is matched, get next last point & update value. This gives a ring effect
-                if (points[0].Equals(checkpoint) && value < 1) {
+                if (points[0].Equals(checkpoint)) {
                     checkpoint = points[^1];
                     ring++;
-                    value = Mathf.Clamp01((1 - Mathf.Cos(Mathf.PI * ring / dungeon.slerpDistance)) / 2f);
+                    if (value < 1) value = Mathf.Clamp01((1 - Mathf.Cos(Mathf.PI * ring / dungeon.slerpDistance)) / 2f);
                 }
                 points.RemoveAt(0);
             }
 
             //Add perlin to yvalues
+            Vector3 normalyzed = Vector3.forward;
+            Vector2 perlinOffset = new Vector2(rng.Next(), rng.Next());
             for (int x = 0; x < X__; x++) {
                 for (int z = 0; z < Z__; z++) {
                     int index = x * Z__ + z;
-                    yValues[index].y = yValues[index].y + Mathf.PerlinNoise(dungeon.perlinScale.x * x / X__, dungeon.perlinScale.z * z / Z__) * yValues[index].z * dungeon.perlinScale.y;
+                    yValues[index].y += Mathf.PerlinNoise(dungeon.perlinScale.x * x / X__ + perlinOffset.x, dungeon.perlinScale.z * z / Z__ + perlinOffset.y) * yValues[index].z * dungeon.perlinScale.y;
+                    if (yValues[index].y < normalyzed.x) normalyzed.x = yValues[index].y;
+                    if (yValues[index].y > normalyzed.y) normalyzed.y = yValues[index].y;
                 }
             }
+            normalyzed.z = normalyzed.y - normalyzed.x;
 
             //Calculate normals for whole area
-            for (int x = 0; x < X__; x++) {
-                for (int z = 0; z < Z__; z++) {
-                    int index = x * Z__ + z;
-                    bool posX = x + 1 < X_;
-                    bool negX = x > 0;
-                    bool posZ = (z + 1) % Z__ != 0;
-                    bool negZ = z > 0;
-                    float Y = yValues[index].y;
-                    //Get normals from the 6 triangles that share this vertex
-                    if (negX) {
-                        Vector3 nx = new Vector3(-1, yValues[index - Z__].y, 0);
-                        if (negZ) normals[index] -= GatherNormals(Y, nx, new Vector3(0, yValues[index - 1].y, -1));
-                        if (posZ) {
-                            Vector3 shared = new Vector3(-1, yValues[index - Z__ + 1].y, 1);
-                            normals[index] -= GatherNormals(Y, nx, shared);
-                            normals[index] -= GatherNormals(Y, new Vector3(0, yValues[index + 1].y, 1), shared);
-                        }
-                    }
-                    if (posX) {
-                        Vector3 px = new Vector3(1, yValues[index + Z__].y, 0);
-                        if (negZ) {
-                            Vector3 shared = new Vector3(1, yValues[index + Z__ - 1].y, -1);
-                            normals[index] -= GatherNormals(Y, new Vector3(0, yValues[index - 1].y, -1), shared);
-                            normals[index] -= GatherNormals(Y, px, shared);
-                        }
-                        if (posZ) normals[index] -= GatherNormals(Y, px, new Vector3(0, yValues[index + 1].y, 1));
-                    }
-                    normals[index].Normalize();
-                }
-            }
+            CalculateNormals(X__, Z__);
 
             //Set chunk Ys
             for (int x = 0; x < X_; x++) {
@@ -498,48 +491,13 @@ public class DungeonGeneration : MonoBehaviour
                     float ax = (x % SIZE) - HALF;
                     float bz = (z % SIZE) - HALF;
                     if ((x + 1) % SIZE == 0 && x > 0) {
-                        chunkData[index].Verts(SIZE * SIZE_ + z % SIZE, x + 1, z, new Vector3(ax + 1, yValues[id + Z__].y, bz), normals[id + Z__]);
-                        if ((z + 1) % SIZE == 0 && z > 0) chunkData[index].Verts(SIZE * SIZE_ + SIZE, x + 1, z + 1, new Vector3(ax + 1, yValues[id + Z__ + 1].y, bz + 1), normals[id + Z__ + 1]);
+                        chunkData[index].Verts(SIZE * SIZE_ + z % SIZE, x + 1, z, new Vector3(ax + 1, yValues[id + Z__].y, bz), normals[id + Z__], VertexColorMask(id + Z__, x + 1, z, normalyzed));
+                        if ((z + 1) % SIZE == 0 && z > 0) chunkData[index].Verts(SIZE * SIZE_ + SIZE, x + 1, z + 1, new Vector3(ax + 1, yValues[id + Z__ + 1].y, bz + 1), normals[id + Z__ + 1], VertexColorMask(id + Z__ + 1, x + 1, z + 1, normalyzed));
                     }
-                    if ((z + 1) % SIZE == 0 && z > 0) chunkData[index].Verts(x % SIZE * SIZE_ + SIZE, x, z + 1, new Vector3(ax, yValues[id + 1].y, bz + 1), normals[id + 1]);
-                    chunkData[index].Verts(x % SIZE * SIZE_ + z % SIZE, x, z, new Vector3(ax, yValues[id].y, bz), normals[id]);
+                    if ((z + 1) % SIZE == 0 && z > 0) chunkData[index].Verts(x % SIZE * SIZE_ + SIZE, x, z + 1, new Vector3(ax, yValues[id + 1].y, bz + 1), normals[id + 1], VertexColorMask(id + 1, x, z + 1, normalyzed));
+                    chunkData[index].Verts(x % SIZE * SIZE_ + z % SIZE, x, z, new Vector3(ax, yValues[id].y, bz), normals[id], VertexColorMask(id, x, z, normalyzed));
                 }
             }
-            /*
-            //This works better using the Z, but still yields poor results. Will need to plan out something both decent looking and optimized. Maybe also reduce the number of loops here
-            //Randomly spawn decor
-            if (dungeon.outsideObjects.Length > 0) {
-                for (int x = 0; x < X__; x++) {
-                    for (int z = 0; z < Z__; z++) {
-                        int index = x * Z__ + z;
-                        if (yValues[index].z < 0 || yValues[index].z == 1) continue;
-                        //pick random decor
-                        int decor = 0;
-                        uint weight = (uint)rng.Next(0, dungeon.objectWeightSum);
-                        uint sum = 0;
-                        if (dungeon.outsideObjects.Length > 1) {
-                            for (byte i = 0; i < dungeon.outsideObjects.Length; i++) {
-                                sum += dungeon.tileset[i].spawnWeight;
-                                if (sum >= weight) {
-                                    decor = i;
-                                    break;
-                                }
-                            }
-                        }
-                        //Randomly spawn object
-                        weight = (uint)rng.Next(0, 255);
-                        if (weight > dungeon.outsideObjects[decor].spawnOdds) continue;
-                        Vector3 pos = new Vector3(2 * x - X, yValues[index].y + dungeon.outsideObjects[decor].Object.groundOffset - center.y, 2 * z - Z) + center;
-                        pos += Vector3.Scale(Random.insideUnitSphere, dungeon.outsideObjects[decor].randomVariation);
-                        //Collision check for dungeon bounds
-                        if (Physics.SphereCast(new Ray(terrain.TransformPoint(pos), Vector3.down * (dungeon.outsideObjects[decor].Object.groundOffset + 1)), dungeon.outsideObjects[decor].Object.spawnRadius, 256)) continue;
-                        GameObject pp = Instantiate(dungeon.outsideObjects[decor].Object.prefab, terrain);
-                        pp.transform.localPosition = pos;
-                        pp.name = $"{pp.name[..^7]}#{index}";
-                    }
-                }
-            }
-            */
             yield return new WaitForFixedUpdate();
 
             //Create chunks local
@@ -552,7 +510,11 @@ public class DungeonGeneration : MonoBehaviour
                     g.name = $"Chunk #{i + 1}";
                     g.transform.localPosition = new Vector3(SIZE * (i / W) - X + HALF + center.x, 0, SIZE * (i % W) - Z + HALF + center.z);
                     chunks[i] = g;
+                    //Collider check
                     if (g.TryGetComponent<MeshCollider>(out MeshCollider mc)) mc.sharedMesh = chunkData[i].chunk;
+                    //Sub mesh check
+                    if (g.transform.childCount > 0 && g.transform.GetChild(0).TryGetComponent<MeshFilter>(out MeshFilter submesh)) submesh.sharedMesh = chunkData[i].chunk;
+                    //Snow check
                     if (g.TryGetComponent<SnowySurface>(out SnowySurface ss)) {
                         snowRayLength = Mathf.Max(snowRayLength, ss.MaxDepth());
                         ss.TileDimensions(SIZE_);
@@ -561,13 +523,17 @@ public class DungeonGeneration : MonoBehaviour
                 }
             }
 
+            //Populate area with decor using 'voronoi' noise (XOR noise)
+            //1 - Mathf.Clamp01(Mathf.Pow(Mathf.Cos((index + x) ^ (index - z) - b), 9))
+
             yield return new WaitForFixedUpdate();
         }
+        #endregion
 
         //Finished
         dungeonGenerated = true;
         watch.Stop();
-        totalTime = watch.ElapsedMilliseconds / 1000f;
+        totalTime += watch.ElapsedMilliseconds / 1000f;
         Debug.Log($"{watch.ElapsedMilliseconds}ms");
     }
 
@@ -602,9 +568,16 @@ public class DungeonGeneration : MonoBehaviour
     }
 
     //Creates the paths from the given inputs
-    private GameObject CreatePath(Transform from, Transform to, Transform parent, float weight, string name = default)
+    private GameObject CreatePath(Transform from, Transform to, Transform parent, float weight, string name = default, Vector3 noise = default)
     {
-        doorwayCoordinates = new Vector3[nomialSize] { from.position, WorldForward(from, weight), Vector3.Lerp(from.position, to.position, 0.375f) + from.forward, Vector3.Lerp(from.position, to.position, 0.625f) + to.forward, WorldForward(to, weight), to.position };
+        doorwayCoordinates = new Vector3[nomialSize] {
+            from.position,
+            WorldForward(from, weight) + noise,
+            Vector3.Lerp(from.position, to.position, 0.375f) + from.forward,
+            Vector3.Lerp(from.position, to.position, 0.625f) + to.forward,
+            WorldForward(to, weight) - noise,
+            to.position
+        };
         Bezier();
         GameObject path = Instantiate(dungeon.pathPrefab);
         path.transform.SetParent(parent, true);
@@ -634,6 +607,39 @@ public class DungeonGeneration : MonoBehaviour
         else return pos;
     }
 
+    //Calculate & store normals
+    private void CalculateNormals(int X, int Z)
+    {
+        for (int x = 0; x < X; x++) {
+            for (int z = 0; z < Z; z++) {
+                int index = x * Z + z;
+                bool posZ = (z + 1) % Z != 0;
+                bool negZ = z > 0;
+                float Y = yValues[index].y;
+                //Get normals from the 6 triangles that share this vertex
+                if (x > 0) {
+                    Vector3 nx = new Vector3(-1, yValues[index - Z].y, 0);
+                    if (negZ) normals[index] -= GatherNormals(Y, nx, new Vector3(0, yValues[index - 1].y, -1));
+                    if (posZ) {
+                        Vector3 shared = new Vector3(-1, yValues[index - Z + 1].y, 1);
+                        normals[index] -= GatherNormals(Y, nx, shared);
+                        normals[index] -= GatherNormals(Y, new Vector3(0, yValues[index + 1].y, 1), shared);
+                    }
+                }
+                if (x + 1 < X - 1) {
+                    Vector3 px = new Vector3(1, yValues[index + Z].y, 0);
+                    if (negZ) {
+                        Vector3 shared = new Vector3(1, yValues[index + Z - 1].y, -1);
+                        normals[index] -= GatherNormals(Y, new Vector3(0, yValues[index - 1].y, -1), shared);
+                        normals[index] -= GatherNormals(Y, px, shared);
+                    }
+                    if (posZ) normals[index] -= GatherNormals(Y, px, new Vector3(0, yValues[index + 1].y, 1));
+                }
+                normals[index].Normalize();
+            }
+        }
+    }
+
     //Seamless normals
     private Vector3 GatherNormals(float Y, Vector3 A, Vector3 B)
     {
@@ -643,12 +649,126 @@ public class DungeonGeneration : MonoBehaviour
     }
 
     //Checks if point has already been updated, adding to list if not
-    private void CheckPoint(int Z_, int x, int z, float Y, float perlin)
+    private void CheckPoint(int Z_, int x, int z, float Y, float value, int ring)
     {
         int id = x * Z_ + z;
-        if (yValues[id].x < 0) return;
-        yValues[id] = new Vector3(-1, Mathf.Max(yValues[id].y, Y), perlin);
+        if (yValues[id].x < 1) return;
+        yValues[id] = new Vector3(-Mathf.Max(ring, 0), Mathf.Max(yValues[id].y, Y), value);
         points.Add(new Point(x, z));
+    }
+
+    //Vertex colors assigned using dungeon selected channels
+    private Color VertexColorMask(int index, int x, int z, Vector3 normalize)
+    {
+        Color c = new Color(-1, -1, -1, -1);
+        float y = (yValues[index].y - normalize.x) / normalize.z;
+        
+        //Deconstruct the alpha enum
+        float alpha = (float)dungeon.grassAlphaNoise;
+        byte a = 0;
+        for (int i = 2048; i > 1; i /= 2) {
+            if (alpha / i >= 1) {
+                alpha %= i;
+                c[a] = i;
+                a++;
+            }
+            if (a > 3) break;
+        }
+        alpha = ColorModifiers(c, index, x, z, y);
+        c = new Color(-1, -1, -1, -1);
+        
+        //Deconstruct the color enum
+        float vert = (float)dungeon.grassColorNoise;
+        a = 0;
+        for (int i = 2048; i > 1; i /= 2) {
+            if (vert / i >= 1) {
+                vert %= i;
+                c[a] = i;
+                a++;
+            }
+            if (a > 3) break;
+        }
+        vert = ColorModifiers(c, index, x, z, y);
+
+        //RG ignored, B = color noise, A = density noise
+        return new Color(0, 0, Mathf.Clamp01(vert), Mathf.Clamp01(alpha));
+    }
+
+    //Convert the enums into values using modifiers
+    private float ColorModifiers(Color c, int index, int x, int z, float y)
+    {
+        //Set values
+        byte n = (byte)Mathf.Max(-Mathf.Sign(dungeon.channelNoiseScale.z), 0);
+        for (byte b = 0; b < 4; b++) {
+            c[b] = c[b] switch {
+                1 => Mathf.Clamp01(-yValues[index].x),
+                2 => yValues[index].z,
+                4 => y,
+                8 => 1 - y,
+                16 => n + Mathf.Sign(dungeon.channelNoiseScale.z) * Mathf.Clamp01(Mathf.Pow(Mathf.Cos((index + x) ^ (index - z) - b), Mathf.Abs(dungeon.channelNoiseScale.z))),
+                32 => Mathf.PerlinNoise((float)x * dungeon.channelNoiseScale.x, (float)z * dungeon.channelNoiseScale.y),
+                _ => c[b],
+            };
+        }
+
+        //Apply modifiers
+        for (byte b = 0; b < 4; b++) {
+            switch (c[b]) {
+                case 2048:
+                    //normalized
+                    break;
+                case 1024:
+                    //multiply
+                    float mult = CCheck(c[0], 1) * CCheck(c[1], 1) * CCheck(c[2], 1) * CCheck(c[3], 1);
+                    for (byte t = b; t < 4; t++) {
+                        if (c[t] > 32) continue;
+                        c[t] = mult;
+                    }
+                    break;
+                case 512:
+                    //difference
+                    float dif = Mathf.Abs(Mathf.Abs(Mathf.Abs(CCheck(c[0], 0) - CCheck(c[1], 0)) - CCheck(c[2], 0)) - CCheck(c[3], 0));
+                    for (byte t = b; t < 4; t++) {
+                        if (c[t] > 32) continue;
+                        c[t] = dif;
+                    }
+                    break;
+                case 256:
+                    //combine
+                    float sum = CCheck(c[0], 0) + CCheck(c[1], 0) + CCheck(c[2], 0) + CCheck(c[3], 0);
+                    for (byte t = b; t < 4; t++) {
+                        if (c[t] > 32) continue;
+                        c[t] = sum;
+                    }
+                    break;
+                case 128:
+                    //max
+                    float max = Mathf.Max(CCheck(c[0], Mathf.NegativeInfinity), CCheck(c[1], Mathf.NegativeInfinity), CCheck(c[2], Mathf.NegativeInfinity), CCheck(c[3], Mathf.NegativeInfinity));
+                    for (byte t = b; t < 4; t++) {
+                        if (c[t] > 32) continue;
+                        c[t] = max;
+                    }
+                    break;
+                case 64:
+                    //min
+                    float min = Mathf.Min(CCheck(c[0], Mathf.Infinity), CCheck(c[1], Mathf.Infinity), CCheck(c[2], Mathf.Infinity), CCheck(c[3], Mathf.Infinity));
+                    for (byte t = b; t < 4; t++) {
+                        if (c[t] > 32) continue;
+                        c[t] = min;
+                    }
+                    break;
+                default:
+                    //non modifier
+                    break;
+            }
+        }
+        if (c.a == -1) c.a = c.r;
+        return c.a;
+    }
+
+    private float CCheck(float input, float returnValue)
+    {
+        return (input > 32 || input == -1) ? returnValue : input;
     }
 
     //Create a curve from door to door
@@ -700,8 +820,8 @@ public class DungeonGeneration : MonoBehaviour
         //Uvs
         for (int i = 0; i <= quality; i++) {
             uvs[i * 5] = new Vector2(-dungeon.pathHeight, distance / distanceSum);
-            uvs[i * 5 + 1] = new Vector2(0.05f, distance / distanceSum);
-            uvs[i * 5 + 2] = new Vector2(0.95f, distance / distanceSum);
+            uvs[i * 5 + 1] = new Vector2(0.001f, distance / distanceSum);
+            uvs[i * 5 + 2] = new Vector2(0.999f, distance / distanceSum);
             uvs[i * 5 + 3] = new Vector2(dungeon.pathHeight, distance / distanceSum);
             uvs[i * 5 + 4] = new Vector2(dungeon.pathHeight, distance / distanceSum);
             if (i < quality) distance += Vector3.Distance(pathwayCoordinates[i], pathwayCoordinates[i + 1]);
@@ -727,5 +847,23 @@ public class DungeonGeneration : MonoBehaviour
         mesh.RecalculateNormals();
         mesh.Optimize();
         return mesh;
+    }
+
+    //Check for grass mat to change to player settings
+    public Material GetGrassMat()
+    {
+        if (dungeon.chunkPrefab.TryGetComponent<MeshRenderer>(out MeshRenderer mr)) {
+            if (mr.sharedMaterial.HasProperty("_GrassLODFade")) {
+                Debug.Log($"Grass material");
+                return mr.sharedMaterial;
+            }
+        }
+        if (dungeon.chunkPrefab.transform.childCount > 0 && dungeon.chunkPrefab.transform.GetChild(0).TryGetComponent<MeshRenderer>(out MeshRenderer cr)) {
+            if (cr.sharedMaterial.HasProperty("_GrassLODFade")) {
+                Debug.Log($"Grass material child");
+                return cr.sharedMaterial;
+            }
+        }
+        return null;
     }
 }

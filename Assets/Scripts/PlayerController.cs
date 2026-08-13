@@ -1,17 +1,53 @@
+using System.Collections.Generic;
+using TMPro;
 using UnityEngine;
 using UnityEngine.InputSystem;
+using UnityEngine.UI;
+using FishNet.Connection;
+using FishNet.Object;
+using FishNet.Managing;
+using FishNet.Transporting;
 
-public class PlayerController : MonoBehaviour
+public class PlayerController : NetworkBehaviour
 {
     [Header("Camera")]
     public Transform head;
+    public Transform face;
+    public Camera mainCam;
     private const float HeadHeight = 0.625f;
     public ParticleSystem[] weathersList;
     public Material weathersMaterial;
+    public Manager manager;
     private float weatherOffset = 0;
+    public GameObject eventSystem;
+
+    [Header("Prefs")]
+    public GameObject pausedScreen;
+    public TMP_Dropdown resolutionDropdown;
+    private Resolution[] resolutions;
+    private Resolution saved;
+    public TMP_Dropdown fpsDropdown;
+    private readonly sbyte[] framerates = new sbyte[5] { -1, 120, 90, 60, 30};
+    public Toggle vsyncToggle;
+    private byte useVsync = 1;
+    public UISetting fov;
+    public UISetting masterVolume;
+    public UISetting voiceVolume;
+    public UISetting grassQuality;
+    public UISetting grassLod;
+    public Color playerColor = Color.clear;
+    public string lastColor = "FFFFFF";
+    public Renderer modelRenderer;
 
     [Header("Controls")]
     public bool paused;
+    public bool interacting;
+    private bool interactLocked;
+    private Transform interactingWith;
+    private float interactLerp = 0;
+    private Interaction interact;
+    private const float ANGLE = 57.2957795130823208768f;
+
     private const float jumpStartEval = 0.5f;
     private const float lookSpeed = 0.1f;
     private const float moveSpeed = 3.1f;
@@ -44,44 +80,162 @@ public class PlayerController : MonoBehaviour
 
     [Header("Inventory")]
     public Transform holdPosition;
-    public int playerStrength = 10;
-    public Transform selectionShellObject;
-    public MeshFilter selectionShellMesh;
+    public byte playerStrength = 10;
+    //public Transform selectionShellObject;
+    //public MeshFilter selectionShellMesh;
     public GameObject interactWith;
     public byte heldItemIndex;
-    public Item[] inventory = new Item[5];
+    public Prop[] inventory = new Prop[5];
     private bool dropping = false;
     private float throwTimer = 0;
     public float buildupRate = 2;
     public float throwThreshold = 0.25f;
     public LayerMask interactLayers;
-    public Transform interactIcon;
+    //public Transform interactIcon;
+    private bool holdingFurniture;
+    private bool validFurniture;
 
-    public void Start()
+    public void ColorDebug(string msg, string hex)
+    {
+        if (ColorUtility.TryParseHtmlString($"#{lastColor}", out _)) Debug.Log($"<color=#{hex}>{msg}</color>");
+    }
+
+    public void ColorDebug(string msg, Color col)
+    {
+        Debug.Log($"<color=#{ColorUtility.ToHtmlStringRGB(col)}>{msg}</color>");
+    }
+
+    public override void OnStartClient()
+    {
+        base.OnStartClient();
+
+        ChangeColorServer(playerColor);
+        if (base.IsOwner) {
+            mainCam = Camera.main;
+            mainCam.transform.SetParent(face);
+            mainCam.transform.SetLocalPositionAndRotation(Vector3.zero, Quaternion.identity);
+            Startup();
+        } else {
+            //Rather than disabling it keep it for snow update?
+            GetComponent<PlayerInput>().enabled = false;
+            eventSystem.SetActive(false);
+            this.enabled = false;
+        }
+    }
+
+    public override void OnStopClient()
+    {
+        Debug.Log($"Exit network. Return to title screen...");
+        DetachCamera();
+        if (base.IsOwner) UnloadDungeon();
+        base.OnStopClient();
+    }
+
+    public override void OnStopServer()
+    {
+        Debug.Log($"Server closed. Return to title screen...");
+        DetachCamera();
+        base.OnStopServer();
+    }
+
+    private void OnDestroy()
+    {
+        DetachCamera();
+    }
+
+    private void Awake()
+    {
+        if (manager == null) {
+            manager = GameObject.FindGameObjectWithTag("GameController").GetComponent<Manager>();
+            manager.player = this;
+        }
+
+        //Tell all other players to send in their colors
+        GameObject[] others = GameObject.FindGameObjectsWithTag("Player");
+        for (byte p = 0; p < others.Length; p++) {
+            if (others[p].TryGetComponent<PlayerController>(out PlayerController player)) {
+                if (player.Equals(this)) continue;
+                if (player.playerColor != Color.clear) player.ChangeColorServer(player.playerColor);
+                //See if there's a dungeon open already from other players
+                if (!manager.inGame || !manager.generating) {
+                    if (player.manager.inGame || player.manager.generating) {
+                        ColorDebug("THERES ALREADY A GAME GOING ON HOLD ON LET ME SNAG THAT SEED AND GENERATE THE DUNGEON AND SYNC UP REAL QUICK", "AAC418");
+                        player.ShareSeedServer(player.manager.generation.seed);
+                    }
+                }
+            }
+        }
+    }
+
+    private void Startup()
     {
         Cursor.lockState = CursorLockMode.Locked;
+
+        //Load up fps settings
+        int fps = ReadPref("Framerate");
+        fpsDropdown.value = (fps < 0 ? 0 : fps);
+
+        //Load up vsync settings
+        int v = ReadPref("Vsync");
+        if (v != 0) VSync(1);
+        else {
+            vsyncToggle.isOn = false;
+            VSync(0);
+        }
+
+        //Load up fov settings
+        InitSlider(fov, "FOV", 60);
+        mainCam.fieldOfView = fov.value;
+
+        //Load up resolution settings
+        resolutions = Screen.resolutions;
+        List<string> list = new List<string>();
+        for (int i = 0; i < resolutions.Length; i++) list.Insert(0, resolutions[i].ToString());
+        resolutionDropdown.AddOptions(list);
+        double hertz = ReadResolution();
+        for (int i = 0; i < resolutions.Length; i++) {
+            if (resolutions[i].Equals(saved) || (resolutions[i].width.Equals(saved.width) && resolutions[i].height.Equals(saved.height) && resolutions[i].refreshRateRatio.value.Equals(hertz))) {
+                resolutionDropdown.value = resolutions.Length - 1 - i;
+                break;
+            }
+        }
+
+        //Load up volume settings
+        InitSlider(masterVolume, "Master", 50);
+        InitSlider(voiceVolume, "Voices", 50);
+
+        //Load up grass settings
+        InitSlider(grassQuality, "GrassQlt", 3);
+        InitSlider(grassLod, "GrassLod", 200);
+        ChangeGQ();
+        ChangeGL();
+
+        //Load up player color & outfit
+        if (PlayerPrefs.HasKey("Color")) lastColor = PlayerPrefs.GetString("Color");
+        if (ColorUtility.TryParseHtmlString($"#{lastColor}", out Color c)) {
+            playerColor = c;
+            ChangeColorServer(c);
+        }
     }
 
     public void Update()
     {
-        //Pause cant move
-        if (paused) return;
-
-        //Looking at raycast
-        if (Physics.SphereCast(head.position, 0.05f, head.forward, out RaycastHit interact, 2.95f, interactLayers)) {
-            if (!interactIcon.gameObject.activeSelf) interactIcon.gameObject.SetActive(true);
-            if (interactWith == null || interactWith != interact.collider.gameObject) interactWith = interact.collider.gameObject;
-            if (interact.collider.gameObject.TryGetComponent<MeshFilter>(out MeshFilter m)) {
-                if (selectionShellMesh.mesh != m.mesh) {
-                    selectionShellMesh.mesh = m.mesh;
-                    selectionShellObject.SetParent(interact.collider.transform, false);
+        //Snow non owner
+        if (!base.IsOwner) {
+            return;
+            if (snowDepth > 0) {
+                if (Physics.Raycast(transform.position, Vector3.down, out RaycastHit snow, snowDepth, 512)) {
+                    if (snow.collider.gameObject.TryGetComponent<SnowySurface>(out SnowySurface script)) {
+                        script.Carve(snow.triangleIndex * 3, 90 * Time.deltaTime * snow.barycentricCoordinate);
+                    }
                 }
             }
-            interactIcon.position = interact.point;
-        } else {
-            if (interactIcon.gameObject.activeSelf) interactIcon.gameObject.SetActive(false);
-            if (interactWith != null) interactWith = null;
-            if (selectionShellMesh.mesh != null) selectionShellMesh.mesh = null;
+        }
+
+        //Separate interpretation when interacting
+        if (interacting) {
+            InteractionCycle();
+            return;
         }
 
         //Launch stun
@@ -147,9 +301,6 @@ public class PlayerController : MonoBehaviour
             }
         }
 
-        //Throwing
-        if (dropping) throwTimer = Mathf.Clamp(throwTimer + Time.deltaTime * buildupRate, 0, buildupRate * 2);
-
         //Movement logic
         if (moving || wasLaunched) {
             float moveMulti = moveSpeed * Time.deltaTime;
@@ -174,6 +325,43 @@ public class PlayerController : MonoBehaviour
             transform.position += movementDir;
         }
 
+        //Pause cant input
+        if (paused) return;
+
+        //Looking at raycast
+        if (Physics.SphereCast(head.position, 0.05f, head.forward, out RaycastHit interact, 2.95f, interactLayers)) {
+            //if (!interactIcon.gameObject.activeSelf) interactIcon.gameObject.SetActive(true);
+            if (interactWith == null || interactWith != interact.collider.gameObject) interactWith = interact.collider.gameObject;
+            /*if (interact.collider.gameObject.TryGetComponent<MeshFilter>(out MeshFilter m)) {
+                if (selectionShellMesh.mesh != m.mesh) {
+                    selectionShellMesh.mesh = m.mesh;
+                    selectionShellObject.SetParent(interact.collider.transform, false);
+                }
+            }
+            */
+            //interactIcon.position = interact.point;
+        } else {
+            //if (interactIcon.gameObject.activeSelf) interactIcon.gameObject.SetActive(false);
+            if (interactWith != null) interactWith = null;
+            //if (selectionShellMesh.mesh != null) selectionShellMesh.mesh = null;
+        }
+
+        //Furniture placement raycast
+        if (holdingFurniture) {
+            Furniture decor = inventory[heldItemIndex].GetComponent<Furniture>();
+            if (Physics.Raycast(head.position, head.forward, out RaycastHit place, 5, groundLayers)) {
+                validFurniture = decor.MoveOutline(place);
+                if (validFurniture) {
+                    if (!decor.visible) decor.Outline(true);
+                } else if (decor.visible) decor.Outline(false);
+            } else if (decor.visible) {
+                decor.Outline(false);
+            }
+        }
+
+        //Throwing
+        if (dropping) throwTimer = Mathf.Clamp(throwTimer + Time.deltaTime * buildupRate, 0, buildupRate * 2);
+
         //Crouch head move
         if (isSneaking) {
             if (head.localPosition.y > 0.05f) head.localPosition = Vector3.Lerp(head.localPosition, Vector3.zero, Time.deltaTime * 30);
@@ -181,6 +369,15 @@ public class PlayerController : MonoBehaviour
         } else {
             if (head.localPosition.y < HeadHeight - 0.05f) head.localPosition = Vector3.Lerp(head.localPosition, Vector3.up * HeadHeight, Time.deltaTime * 30);
             else if (head.localPosition != Vector3.up * HeadHeight) head.localPosition = Vector3.up * HeadHeight;
+        }
+    }
+
+    //When interacting inputs are interpreted differently
+    private void InteractionCycle()
+    {
+        if (interactingWith != null) {
+            Interpolate(interactingWith, interactLerp);
+            if (interact.snapIntoPlace && interactLerp > 0) interactLerp = Mathf.Max(interactLerp - Time.deltaTime * 2, 0);
         }
     }
 
@@ -239,6 +436,18 @@ public class PlayerController : MonoBehaviour
         airtime = launchVector.y;
     }
 
+    //Bump player with less stun & not prevent jump
+    public void KnockPlayer(Vector3 direction = default)
+    {
+        if (direction == default) direction = Random.onUnitSphere * 0.1f;
+        Debug.DrawRay(transform.position, direction, Color.green, 1.5f);
+        wasLaunched = true;
+        launchVector = direction / (2 * playerStrength + 5);
+        launchVector.y = Mathf.Clamp01(Mathf.Abs(launchVector.y)) + 0.002f;
+        launchStunTime = Mathf.Clamp01(launchVector.magnitude / 2) + 0.1f;
+        Debug.Log($"Stun {launchStunTime}sec");
+    }
+
     //Hide and activate the model of the held item
     private bool UpdateItemHeld(byte index)
     {
@@ -256,13 +465,90 @@ public class PlayerController : MonoBehaviour
         throwTimer = 0;
     }
 
+    //Move player to interaction position
+    public bool LockIntoPlace(Interaction I, Transform position)
+    {
+        if (paused) return false;
+        interact = I;
+        interactLocked = I.lockPlayer;
+        interacting = true;
+        interactingWith = position;
+        interactLerp = I.playerForce;
+        return true;
+    }
+
+    //Player can stop interacting
+    public void FreePlayer(float sec = 0)
+    {
+        interacting = false;
+        interactLocked = false;
+        interactingWith = null;
+        if (interact != null) {
+            interact.Drop(default);
+            interact = null;
+        }
+    }
+
+    //Move & rotate player
+    private void Interpolate(Transform target, float t)
+    {
+        if (t == 0) return;
+
+        //Pos
+        transform.position = Vector3.Lerp(transform.position, target.position, t);
+
+        //Yaw
+        Vector2 flat = new Vector2(target.forward.x, target.forward.z).normalized;
+        Vector2 xing = new Vector2(target.right.x, target.right.z).normalized;
+        Vector2 look = new Vector2(transform.forward.x, transform.forward.z);
+        float dot = 1 - Vector2.Dot(look, flat);
+        sbyte sign = (sbyte)-Mathf.Sign(Vector2.Dot(look, xing));
+        if (dot > 0.001f) transform.Rotate(Vector3.up, t * Time.deltaTime * 360 * dot * sign);
+
+        //Pitch
+        dot = 0;
+        if (target.forward.y != 0) dot = -Mathf.Asin(target.forward.y) * ANGLE;
+        head.localEulerAngles = new Vector3(Mathf.LerpAngle(head.localEulerAngles.x, dot, t * Time.deltaTime * 5), 0);
+    }
+
+    //Return to main menu
+    public void ExitGame()
+    {
+        if (!paused) return;
+        
+    }
+
+    [ServerRpc]
+    public void ShareSeedServer(int seed)
+    {
+        ShareSeedClient(seed);
+    }
+
+    [ObserversRpc]
+    public void ShareSeedClient(int seed)
+    {
+        ColorDebug($"Seed: {seed}", "995512");
+        manager.NextRound(seed);
+    }
+
+    public void UnloadDungeon()
+    {
+        manager.Clear();
+    }
+
+    //Detaches camera from player
+    public void DetachCamera()
+    {
+        if (mainCam == null) return;
+        mainCam.transform.parent = null;
+        mainCam.transform.SetPositionAndRotation(Vector3.up * 3, Quaternion.identity);
+    }
+
     //Get/Set weather to/from manager
     public void Weather(Weathers weather)
     {
         for (byte b = 1; b <= weathersList.Length; b++) weathersList[b - 1].gameObject.SetActive(b == (byte)weather);
-        string nam = $"_WEATHER_{weather.ToString().ToUpper()}";
-        //Debug.Log(nam);
-        weathersMaterial.EnableKeyword(nam);
+        weathersMaterial.SetInt("_ID", (byte)weather);
     }
 
     //Scroll the weather shader to give the illusion of it being in world space
@@ -279,11 +565,182 @@ public class PlayerController : MonoBehaviour
         else snowDepth = depth + 0.1f + playerColliderRadius;
     }
 
+    #region Settings
+    //Change the resolutions
+    public void ChangeResolution()
+    {
+        int id = resolutions.Length - 1 - resolutionDropdown.value;
+        Screen.SetResolution(resolutions[id].width, resolutions[id].height, Screen.fullScreenMode, resolutions[id].refreshRateRatio);
+        SetResolution(resolutions[id]);
+    }
+
+    //Set framerate
+    public void ChangeFrameRate()
+    {
+        Frames(fpsDropdown.value);
+    }
+
+    //Save the set frames
+    private void Frames(int index)
+    {
+        fpsDropdown.value = index;
+        Application.targetFrameRate = framerates[index];
+        SetPref("Framerate", index);
+    }
+
+    //Toggle vsync
+    public void ToggleVsync()
+    {
+        useVsync = (byte)((useVsync + 1) % 2);
+        VSync(useVsync);
+    }
+
+    //Set the vsync
+    private void VSync(byte sync)
+    {
+        useVsync = sync;
+        QualitySettings.vSyncCount = sync;
+        SetPref("Vsync", sync);
+    }
+
+    //Set fov
+    public void ChangeFOV()
+    {
+        fov.value = Mathf.RoundToInt(fov.slider.value);
+        mainCam.fieldOfView = fov.value;
+        SetSlider(fov, "FOV");
+        manager.SetGrass();
+    }
+
+    //Set all volume
+    public void ChangeVolume()
+    {
+        masterVolume.value = Mathf.RoundToInt(masterVolume.slider.value);
+        SetSlider(masterVolume, "Master");
+    }
+
+    //Set voice volume
+    public void ChangeVoices()
+    {
+        voiceVolume.value = Mathf.RoundToInt(voiceVolume.slider.value);
+        SetSlider(voiceVolume, "Voices");
+    }
+
+    //Set grass quality
+    public void ChangeGQ()
+    {
+        grassQuality.value = Mathf.RoundToInt(grassQuality.slider.value);
+        SetSlider(grassQuality, "GrassQlt");
+        grassQuality.text.text = "Grass Quality" + grassQuality.value switch {
+            4 => ": High",
+            3 => ": Medium",
+            2 => ": Decent",
+            1 => ": Low",
+            _ => ""
+        };
+        manager.SetGrass();
+    }
+
+    //Set grass lod
+    public void ChangeGL()
+    {
+        grassLod.value = Mathf.RoundToInt(grassLod.slider.value);
+        SetSlider(grassLod, "GrassLod");
+        grassLod.text.text = $"Grass Detail: {grassLod.value / 10.0f}m";
+        manager.SetGrass();
+    }
+
+    //Color is the only setting that has to be synced across players
+    #region Color
+    //Set player color
+    public void ChangeColor(Color input)
+    {
+        lastColor = ColorUtility.ToHtmlStringRGB(input);
+        playerColor = input;
+        //GetComponent<Renderer>().material.color = playerColor;
+        SetPref("Color", lastColor);
+        ChangeColorServer(playerColor);
+    }
+
+    [ServerRpc]
+    public void ChangeColorServer(Color c)
+    {
+        ChangeColorClient(c);
+    }
+
+    [ObserversRpc]
+    public void ChangeColorClient(Color c)
+    {
+        //GetComponent<Renderer>().material.color = c;
+        modelRenderer.material.color = c * 1.41421f;
+    }
+    #endregion
+
+    //Update a slider
+    private void SetSlider(UISetting settings, string key)
+    {
+        settings.slider.value = settings.value;
+        settings.text.text = $"{key}: {settings.value}";
+        SetPref(key, settings.value);
+    }
+
+    //Initialize ui settings
+    private void InitSlider(UISetting settings, string key, int value)
+    {
+        settings.value = ReadPref(key);
+        if (settings.value < 0) settings.value = value;
+        SetSlider(settings, key);
+    }
+
+    //Returns value of key
+    private int ReadPref(string key)
+    {
+        if (PlayerPrefs.HasKey(key)) return PlayerPrefs.GetInt(key);
+        return -1;
+    }
+
+    //Save value of key
+    private void SetPref(string key, int value)
+    {
+        PlayerPrefs.SetInt(key, value);
+    }
+
+    //Save string of key
+    private void SetPref(string key, string value)
+    {
+        PlayerPrefs.SetString(key, value);
+    }
+
+    //Gets player's saved resolution
+    private double ReadResolution()
+    {
+        if (PlayerPrefs.HasKey("Resolution")) {
+            string[] values = PlayerPrefs.GetString("Resolution").Split(',', System.StringSplitOptions.RemoveEmptyEntries);
+            saved = new Resolution();
+            saved.width = int.Parse(values[0]);
+            saved.height = int.Parse(values[1]);
+            return double.Parse(values[2]);
+        } else saved = Screen.currentResolution;
+        return -1;
+    }
+
+    //Saves resolution as WIDTH, HEIGHT, HZ
+    private void SetResolution(Resolution current)
+    {
+        PlayerPrefs.SetString("Resolution", $"{current.width}, {current.height}, {current.refreshRateRatio.value}");
+    }
+    #endregion
+
     #region Controls
     //Set pause to given state
     public void Pause(bool state)
     {
+        if (interacting) {
+            FreePlayer();
+            return;
+        }
         paused = !paused;
+        pausedScreen.SetActive(paused);
         //paused = state;
         Cursor.lockState = (CursorLockMode)(paused ? 0 : 1);
     }
@@ -291,15 +748,21 @@ public class PlayerController : MonoBehaviour
     //Look rotate body and head
     public void CameraMovement(InputAction.CallbackContext ctx)
     {
+        if (paused) return;
+        if (interactLocked) return;
         float x = ctx.ReadValue<Vector2>().x * lookSpeed;
         transform.Rotate(x * Vector3.up);
         ScrollWeather(x);
-        head.localEulerAngles = new Vector3(head.localEulerAngles.x - ctx.ReadValue<Vector2>().y * lookSpeed, 0, 0);
+        head.localEulerAngles = new Vector3(head.localEulerAngles.x - ctx.ReadValue<Vector2>().y * lookSpeed, 0);
     }
 
     //Movement input
     public void Movement(InputAction.CallbackContext ctx)
     {
+        if (paused) {
+            moving = false;
+            return;
+        }
         if (ctx.started) moving = true;
         movementInput = ctx.ReadValue<Vector2>();
         if (ctx.canceled) moving = false;
@@ -308,7 +771,12 @@ public class PlayerController : MonoBehaviour
     //Jump input
     public void Jump(InputAction.CallbackContext ctx)
     {
-        if (!hasJumped) {
+        if (interacting) {
+            if (ctx.started) {
+                interact.JumpInput();
+                hasJumped = true;
+            }
+        } else if (!hasJumped) {
             risingJump = true;
             hasJumped = true;
             airtime = jumpStartEval;
@@ -318,6 +786,7 @@ public class PlayerController : MonoBehaviour
     //Run input
     public void Sprint(InputAction.CallbackContext ctx)
     {
+        if (interacting) return;
         isSneaking = false;
         if (ctx.started) isSprinting = true;
         if (ctx.canceled) isSprinting = false;
@@ -326,6 +795,10 @@ public class PlayerController : MonoBehaviour
     //Sneak input
     public void Sneak(InputAction.CallbackContext ctx)
     {
+        if (interacting) {
+            if (ctx.started) FreePlayer();
+            return;
+        }
         isSprinting = false;
         if (ctx.started) isSneaking = true;
         if (ctx.canceled) isSneaking = false;
@@ -334,10 +807,12 @@ public class PlayerController : MonoBehaviour
     //Grab input
     public void Grab(InputAction.CallbackContext ctx)
     {
+        if (paused) return;
         if (ctx.started) {
             if (interactWith != null) {
                 //Check if player can actually hold an item
                 bool grab = false;
+                if (holdingFurniture) return;
                 if (inventory[heldItemIndex] != null) {
                     for (byte i = 0; i < inventory.Length; i++) {
                         if (inventory[(heldItemIndex + i + inventory.Length) % inventory.Length] != null) continue;
@@ -348,9 +823,11 @@ public class PlayerController : MonoBehaviour
 
                 //Grab item
                 if (grab) {
-                    if (interactWith.TryGetComponent<Item>(out Item script)) {
-                        inventory[heldItemIndex] = script;
-                        script.Grab(holdPosition);
+                    if (interactWith.TryGetComponent<Prop>(out Prop script)) {
+                        if (script.Grab(holdPosition)) {
+                            inventory[heldItemIndex] = script;
+                            if (script.TryGetComponent<Furniture>(out _)) holdingFurniture = true;
+                        }
                     }
                 }
             }
@@ -360,13 +837,19 @@ public class PlayerController : MonoBehaviour
     //Drop input
     public void Drop(InputAction.CallbackContext ctx)
     {
+        if (paused) return;
         //If holding item, start building throw charge to be applied on release of button
         if (ctx.started && inventory[heldItemIndex] != null) dropping = true;
         if (ctx.canceled && dropping && inventory[heldItemIndex] != null) {
+            if (holdingFurniture && !validFurniture) {
+                CancelDrop();
+                return;
+            }
             inventory[heldItemIndex].SnowData(snowDepth - playerColliderRadius);
             if (throwTimer > throwThreshold) inventory[heldItemIndex].Throw(transform.forward, playerStrength * throwTimer * head.forward);
             else inventory[heldItemIndex].Drop(transform.forward);
             inventory[heldItemIndex] = null;
+            holdingFurniture = false;
             CancelDrop();
         }
     }
@@ -374,21 +857,31 @@ public class PlayerController : MonoBehaviour
     //Scroll inventory
     public void Scroll(InputAction.CallbackContext ctx)
     {
+        if (holdingFurniture) return;
         sbyte scroll = (sbyte)(Mathf.Clamp(ctx.ReadValue<Vector2>().y, -1, 1));
         UpdateItemHeld((byte)((scroll + inventory.Length + heldItemIndex) % inventory.Length));
     }
 
     //Hotkey
-    public bool Hotkey(InputAction.CallbackContext ctx)
+    public void Hotkey(InputAction.CallbackContext ctx)
     {
+        if (holdingFurniture) return;
         Vector3 input = ctx.ReadValue<Vector3>();
-        if (input.y > 0) return UpdateItemHeld(0);
-        if (input.y < 0) return UpdateItemHeld(1);
-        if (input.x > 0) return UpdateItemHeld(2);
-        if (input.x < 0) return UpdateItemHeld(3);
-        if (input.z > 0) return UpdateItemHeld(4);
-        //if (input.z < 0) return UpdateItemHeld(5);
-        return false;
+        for (byte i = 0; i < 5; i++) {
+            //check signs of x y z silly
+            if (Mathf.Sign(0.5f - i % 2) * input[i / 2] > 0) {
+                UpdateItemHeld(i);
+                return;
+            }
+        }
     }
     #endregion
+}
+
+[System.Serializable]
+public struct UISetting
+{
+    public Slider slider;
+    public TextMeshProUGUI text;
+    public int value;
 }

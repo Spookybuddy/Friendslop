@@ -66,7 +66,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   m_Active: 1
   renderInSceneView: 0
-  renderPassEvent: 400
+  renderPassEvent: 350
   settings:
     fogDownsampleLevel: 4
     fogMaterial: {fileID: 2100000, guid: 10d77fea58680bd4497eec1c177490b2, type: 2}
