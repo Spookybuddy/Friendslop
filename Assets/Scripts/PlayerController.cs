@@ -14,10 +14,12 @@ public class PlayerController : NetworkBehaviour
     public Transform head;
     public Transform face;
     public Camera mainCam;
+    public Transform playerModel;
     private const float HeadHeight = 0.625f;
     public ParticleSystem[] weathersList;
     public Material weathersMaterial;
     public Manager manager;
+    public Networker networker;
     private float weatherOffset = 0;
     public GameObject eventSystem;
 
@@ -95,15 +97,17 @@ public class PlayerController : NetworkBehaviour
     private bool holdingFurniture;
     private bool validFurniture;
 
+    #region Colored Debug Message
     public void ColorDebug(string msg, string hex)
     {
-        if (ColorUtility.TryParseHtmlString($"#{lastColor}", out _)) Debug.Log($"<color=#{hex}>{msg}</color>");
+        if (ColorUtility.TryParseHtmlString($"#{hex}", out _)) Debug.Log($"<color=#{hex}>{msg}</color>");
     }
 
     public void ColorDebug(string msg, Color col)
     {
         Debug.Log($"<color=#{ColorUtility.ToHtmlStringRGB(col)}>{msg}</color>");
     }
+    #endregion
 
     public override void OnStartClient()
     {
@@ -147,7 +151,7 @@ public class PlayerController : NetworkBehaviour
     {
         if (manager == null) {
             manager = GameObject.FindGameObjectWithTag("GameController").GetComponent<Manager>();
-            manager.player = this;
+            networker = manager.PlayerSetup(this);
         }
 
         //Tell all other players to send in their colors
@@ -157,12 +161,14 @@ public class PlayerController : NetworkBehaviour
                 if (player.Equals(this)) continue;
                 if (player.playerColor != Color.clear) player.ChangeColorServer(player.playerColor);
                 //See if there's a dungeon open already from other players
+                /*
                 if (!manager.inGame || !manager.generating) {
                     if (player.manager.inGame || player.manager.generating) {
                         ColorDebug("THERES ALREADY A GAME GOING ON HOLD ON LET ME SNAG THAT SEED AND GENERATE THE DUNGEON AND SYNC UP REAL QUICK", "AAC418");
-                        player.ShareSeedServer(player.manager.generation.seed);
+                        player.ShareSeedServer(player.manager.generation.seed, player.manager.gameTime);
                     }
                 }
+                */
             }
         }
     }
@@ -222,7 +228,6 @@ public class PlayerController : NetworkBehaviour
     {
         //Snow non owner
         if (!base.IsOwner) {
-            return;
             if (snowDepth > 0) {
                 if (Physics.Raycast(transform.position, Vector3.down, out RaycastHit snow, snowDepth, 512)) {
                     if (snow.collider.gameObject.TryGetComponent<SnowySurface>(out SnowySurface script)) {
@@ -230,6 +235,7 @@ public class PlayerController : NetworkBehaviour
                     }
                 }
             }
+            return;
         }
 
         //Separate interpretation when interacting
@@ -515,20 +521,8 @@ public class PlayerController : NetworkBehaviour
     public void ExitGame()
     {
         if (!paused) return;
-        
-    }
 
-    [ServerRpc]
-    public void ShareSeedServer(int seed)
-    {
-        ShareSeedClient(seed);
-    }
-
-    [ObserversRpc]
-    public void ShareSeedClient(int seed)
-    {
-        ColorDebug($"Seed: {seed}", "995512");
-        manager.NextRound(seed);
+        manager.OnClick_Client(true);
     }
 
     public void UnloadDungeon()
@@ -792,7 +786,7 @@ public class PlayerController : NetworkBehaviour
         if (ctx.canceled) isSprinting = false;
     }
     
-    //Sneak input
+    //Sneak input - Sync up player squash
     public void Sneak(InputAction.CallbackContext ctx)
     {
         if (interacting) {
@@ -802,6 +796,25 @@ public class PlayerController : NetworkBehaviour
         isSprinting = false;
         if (ctx.started) isSneaking = true;
         if (ctx.canceled) isSneaking = false;
+        ServerCrouch(isSneaking);
+    }
+
+    [ServerRpc]
+    public void ServerCrouch(bool crouching)
+    {
+        ClientCrouch(crouching);
+    }
+
+    [ObserversRpc]
+    public void ClientCrouch(bool crouching)
+    {
+        if (crouching) {
+            playerModel.localScale = new Vector3(0.9f, 0.9f, 0.5f);
+            playerModel.localPosition = Vector3.down * 0.4f;
+        } else {
+            playerModel.localScale = Vector3.one * 0.9f;
+            playerModel.localPosition = Vector3.zero;
+        }
     }
 
     //Grab input

@@ -5758,8 +5758,8 @@ RectTransform:
   m_Children: []
   m_Father: {fileID: 8760704852574947969}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0.61290324, y: 0}
-  m_AnchorMax: {x: 0.61290324, y: 1}
+  m_AnchorMin: {x: 0.5, y: 0}
+  m_AnchorMax: {x: 0.5, y: 1}
   m_AnchoredPosition: {x: 0, y: 0}
   m_SizeDelta: {x: 20, y: 0}
   m_Pivot: {x: 0.5, y: 0.5}
@@ -48105,6 +48105,7 @@ MonoBehaviour:
   head: {fileID: 3529513581528407396}
   face: {fileID: 5866603591710240676}
   mainCam: {fileID: 0}
+  playerModel: {fileID: 104019465031738899}
   weathersList:
   - {fileID: 2045113395645443643}
   - {fileID: 825926610920494727}
@@ -48112,6 +48113,7 @@ MonoBehaviour:
   - {fileID: 1253850381874488137}
   weathersMaterial: {fileID: 2100000, guid: 19b370d8635c98d49abb326b3b3d847d, type: 2}
   manager: {fileID: 0}
+  networker: {fileID: 0}
   eventSystem: {fileID: 6525412973144874640}
   pausedScreen: {fileID: 768881580807353303}
   resolutionDropdown: {fileID: 2472214543130801095}
@@ -49106,7 +49108,7 @@ RectTransform:
   m_Father: {fileID: 1453306081285879444}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}
-  m_AnchorMax: {x: 0.61290324, y: 1}
+  m_AnchorMax: {x: 0.5, y: 1}
   m_AnchoredPosition: {x: 0, y: 0}
   m_SizeDelta: {x: 10, y: 0}
   m_Pivot: {x: 0.5, y: 0.5}
@@ -49351,7 +49353,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!4 &8613322372219721034
 Transform:
   m_ObjectHideFlags: 0
