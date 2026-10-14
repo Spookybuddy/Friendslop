@@ -7,6 +7,7 @@ using FishNet.Connection;
 using FishNet.Object;
 using FishNet.Managing;
 using FishNet.Transporting;
+using System.Collections;
 
 public class PlayerController : NetworkBehaviour
 {
@@ -15,6 +16,8 @@ public class PlayerController : NetworkBehaviour
     public Transform face;
     public Camera mainCam;
     public Transform playerModel;
+    public TextMeshProUGUI nametag;
+    public Transform[] otherNametags;
     private const float HeadHeight = 0.625f;
     public ParticleSystem[] weathersList;
     public Material weathersMaterial;
@@ -109,6 +112,8 @@ public class PlayerController : NetworkBehaviour
     }
     #endregion
 
+    #region Join/Disconnect
+    //Client joins, startup & disable on other clients
     public override void OnStartClient()
     {
         base.OnStartClient();
@@ -121,20 +126,24 @@ public class PlayerController : NetworkBehaviour
             Startup();
         } else {
             //Rather than disabling it keep it for snow update?
+            nametag.text = $"#{base.OwnerId}";
             GetComponent<PlayerInput>().enabled = false;
             eventSystem.SetActive(false);
             this.enabled = false;
         }
     }
 
+    //Client quit, split camera, unload dungeon, & show ui
     public override void OnStopClient()
     {
         Debug.Log($"Exit network. Return to title screen...");
         DetachCamera();
+        manager.HideMainUI(true);
         if (base.IsOwner) UnloadDungeon();
         base.OnStopClient();
     }
 
+    //Server closed, split camera before
     public override void OnStopServer()
     {
         Debug.Log($"Server closed. Return to title screen...");
@@ -142,40 +151,32 @@ public class PlayerController : NetworkBehaviour
         base.OnStopServer();
     }
 
-    private void OnDestroy()
+    //Grab new player nametag for previous players
+    public override void OnSpawnServer(NetworkConnection connection)
     {
-        DetachCamera();
+        base.OnSpawnServer(connection);
+        StartCoroutine(WaitForJoin());
     }
 
-    private void Awake()
+    //Waits 1/10th second to grab all other player nametags after a player joins
+    private IEnumerator WaitForJoin()
     {
-        if (manager == null) {
-            manager = GameObject.FindGameObjectWithTag("GameController").GetComponent<Manager>();
-            networker = manager.PlayerSetup(this);
-        }
-
-        //Tell all other players to send in their colors
+        yield return new WaitForSeconds(0.1f);
         GameObject[] others = GameObject.FindGameObjectsWithTag("Player");
+        otherNametags = new Transform[others.Length];
         for (byte p = 0; p < others.Length; p++) {
             if (others[p].TryGetComponent<PlayerController>(out PlayerController player)) {
                 if (player.Equals(this)) continue;
-                if (player.playerColor != Color.clear) player.ChangeColorServer(player.playerColor);
-                //See if there's a dungeon open already from other players
-                /*
-                if (!manager.inGame || !manager.generating) {
-                    if (player.manager.inGame || player.manager.generating) {
-                        ColorDebug("THERES ALREADY A GAME GOING ON HOLD ON LET ME SNAG THAT SEED AND GENERATE THE DUNGEON AND SYNC UP REAL QUICK", "AAC418");
-                        player.ShareSeedServer(player.manager.generation.seed, player.manager.gameTime);
-                    }
-                }
-                */
+                otherNametags[player.OwnerId] = player.nametag.transform.parent;
             }
         }
     }
 
+    //Load in the player settings from player prefs
     private void Startup()
     {
         Cursor.lockState = CursorLockMode.Locked;
+        nametag.enabled = false;
 
         //Load up fps settings
         int fps = ReadPref("Framerate");
@@ -224,6 +225,50 @@ public class PlayerController : NetworkBehaviour
         }
     }
 
+    //Split cam before destruction
+    private void OnDestroy()
+    {
+        DetachCamera();
+    }
+
+    //Detaches camera from player
+    public void DetachCamera()
+    {
+        if (mainCam == null) return;
+        mainCam.transform.parent = null;
+        mainCam.transform.SetPositionAndRotation(Vector3.up * 3, Quaternion.identity);
+    }
+
+    //Return to main menu
+    public void ExitGame()
+    {
+        if (!paused) return;
+
+        if (base.OwnerId == 0) manager.StartServer(true);
+        else manager.StartClient(true);
+    }
+    #endregion
+
+    //Find the managers & sync colors
+    private void Awake()
+    {
+        if (manager == null) {
+            manager = GameObject.FindGameObjectWithTag("GameController").GetComponent<Manager>();
+            networker = manager.PlayerSetup(this);
+        }
+
+        //Tell all other players to send in their colors & nametags
+        GameObject[] others = GameObject.FindGameObjectsWithTag("Player");
+        otherNametags = new Transform[others.Length];
+        for (byte p = 0; p < others.Length; p++) {
+            if (others[p].TryGetComponent<PlayerController>(out PlayerController player)) {
+                if (player.Equals(this)) continue;
+                if (player.playerColor != Color.clear) player.ChangeColorServer(player.playerColor);
+                otherNametags[player.OwnerId] = player.nametag.transform.parent;
+            }
+        }
+    }
+
     public void Update()
     {
         //Snow non owner
@@ -236,6 +281,13 @@ public class PlayerController : NetworkBehaviour
                 }
             }
             return;
+        }
+
+        //Other player nametags face camera
+        Vector3 flatPos = new Vector3(transform.position.x, 0, transform.position.z);
+        for (byte n = 0; n < otherNametags.Length; n++) {
+            if (n == base.OwnerId) continue;
+            if (otherNametags[n] != null) otherNametags[n].LookAt(flatPos + Vector3.Scale(otherNametags[n].position, Vector3.up), Vector3.up);
         }
 
         //Separate interpretation when interacting
@@ -387,6 +439,7 @@ public class PlayerController : NetworkBehaviour
         }
     }
 
+    #region Movement
     //Return multiplicitive value for how much a player slides on specific tagged surfaces
     private float Friction(string tag = default)
     {
@@ -453,7 +506,9 @@ public class PlayerController : NetworkBehaviour
         launchStunTime = Mathf.Clamp01(launchVector.magnitude / 2) + 0.1f;
         Debug.Log($"Stun {launchStunTime}sec");
     }
+    #endregion
 
+    #region Interaction
     //Hide and activate the model of the held item
     private bool UpdateItemHeld(byte index)
     {
@@ -516,26 +571,12 @@ public class PlayerController : NetworkBehaviour
         if (target.forward.y != 0) dot = -Mathf.Asin(target.forward.y) * ANGLE;
         head.localEulerAngles = new Vector3(Mathf.LerpAngle(head.localEulerAngles.x, dot, t * Time.deltaTime * 5), 0);
     }
+    #endregion
 
-    //Return to main menu
-    public void ExitGame()
-    {
-        if (!paused) return;
-
-        manager.OnClick_Client(true);
-    }
-
+    //Remove the generated dungeon
     public void UnloadDungeon()
     {
         manager.Clear();
-    }
-
-    //Detaches camera from player
-    public void DetachCamera()
-    {
-        if (mainCam == null) return;
-        mainCam.transform.parent = null;
-        mainCam.transform.SetPositionAndRotation(Vector3.up * 3, Quaternion.identity);
     }
 
     //Get/Set weather to/from manager
@@ -560,6 +601,8 @@ public class PlayerController : NetworkBehaviour
     }
 
     #region Settings
+
+    #region Visuals
     //Change the resolutions
     public void ChangeResolution()
     {
@@ -605,7 +648,9 @@ public class PlayerController : NetworkBehaviour
         SetSlider(fov, "FOV");
         manager.SetGrass();
     }
+    #endregion
 
+    #region Audio
     //Set all volume
     public void ChangeVolume()
     {
@@ -619,7 +664,9 @@ public class PlayerController : NetworkBehaviour
         voiceVolume.value = Mathf.RoundToInt(voiceVolume.slider.value);
         SetSlider(voiceVolume, "Voices");
     }
+    #endregion
 
+    #region Grass
     //Set grass quality
     public void ChangeGQ()
     {
@@ -643,9 +690,10 @@ public class PlayerController : NetworkBehaviour
         grassLod.text.text = $"Grass Detail: {grassLod.value / 10.0f}m";
         manager.SetGrass();
     }
+    #endregion
 
-    //Color is the only setting that has to be synced across players
     #region Color
+    //Color is the only setting that has to be synced across players
     //Set player color
     public void ChangeColor(Color input)
     {
@@ -656,20 +704,22 @@ public class PlayerController : NetworkBehaviour
         ChangeColorServer(playerColor);
     }
 
+    //Change player color to passed color
     [ServerRpc]
     public void ChangeColorServer(Color c)
     {
         ChangeColorClient(c);
     }
 
+    //Set material color clientside
     [ObserversRpc]
     public void ChangeColorClient(Color c)
     {
-        //GetComponent<Renderer>().material.color = c;
         modelRenderer.material.color = c * 1.41421f;
     }
     #endregion
 
+    #region UI & saving
     //Update a slider
     private void SetSlider(UISetting settings, string key)
     {
@@ -723,6 +773,8 @@ public class PlayerController : NetworkBehaviour
     {
         PlayerPrefs.SetString("Resolution", $"{current.width}, {current.height}, {current.refreshRateRatio.value}");
     }
+    #endregion
+
     #endregion
 
     #region Controls
@@ -799,12 +851,14 @@ public class PlayerController : NetworkBehaviour
         ServerCrouch(isSneaking);
     }
 
+    //Tell server that player is crouching
     [ServerRpc]
     public void ServerCrouch(bool crouching)
     {
         ClientCrouch(crouching);
     }
 
+    //Update player model to squish when crouching
     [ObserversRpc]
     public void ClientCrouch(bool crouching)
     {

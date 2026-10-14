@@ -74,6 +74,11 @@ public class Manager : MonoBehaviour
         network.ClientManager.OnClientConnectionState -= ClientManager_OnClientConnectionState;
     }
 
+    public void CloseApp()
+    {
+        Application.Quit();
+    }
+
     #region Server Joining
     private void ClientManager_OnClientConnectionState(ClientConnectionStateArgs obj)
     {
@@ -85,14 +90,19 @@ public class Manager : MonoBehaviour
         _serverState = obj.ConnectionState;
     }
 
-    public void OnClick_Server(bool stop = false)
+    public void StartServer(bool stop = false)
     {
         if (network == null) return;
-        if (stop) network.ServerManager.StopConnection(true);
-        else network.ServerManager.StartConnection();
+        if (stop) {
+            StartClient(stop);
+            network.ServerManager.StopConnection(true);
+        } else {
+            network.ServerManager.StartConnection();
+            StartClient(stop);
+        }
     }
 
-    public void OnClick_Client(bool stop = false)
+    public void StartClient(bool stop = false)
     {
         if (network == null) return;
         if (stop) network.ClientManager.StopConnection();
