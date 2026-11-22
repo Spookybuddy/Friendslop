@@ -3,17 +3,29 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.UI;
+using FishNet.Connection;
+using FishNet.Object;
+using FishNet.Managing;
+using FishNet.Transporting;
+using System.Collections;
+using FishNet.Object.Synchronizing;
 
-public class PlayerController : MonoBehaviour
+public class PlayerController : NetworkBehaviour
 {
     [Header("Camera")]
     public Transform head;
+    public Transform face;
     public Camera mainCam;
+    public Transform playerModel;
+    public TextMeshProUGUI nametag;
+    public Transform[] otherNametags;
     private const float HeadHeight = 0.625f;
     public ParticleSystem[] weathersList;
     public Material weathersMaterial;
     public Manager manager;
+    public Networker networker;
     private float weatherOffset = 0;
+    public GameObject eventSystem;
 
     [Header("Prefs")]
     public GameObject pausedScreen;
@@ -29,8 +41,10 @@ public class PlayerController : MonoBehaviour
     public UISetting voiceVolume;
     public UISetting grassQuality;
     public UISetting grassLod;
-    public Color playerColor;
+    public Color playerColor = Color.clear;
+    //public readonly SyncVar<Color> fur = new SyncVar<Color>();
     public string lastColor = "FFFFFF";
+    public Renderer modelRenderer;
 
     [Header("Controls")]
     public bool paused;
@@ -74,8 +88,8 @@ public class PlayerController : MonoBehaviour
     [Header("Inventory")]
     public Transform holdPosition;
     public byte playerStrength = 10;
-    public Transform selectionShellObject;
-    public MeshFilter selectionShellMesh;
+    //public Transform selectionShellObject;
+    //public MeshFilter selectionShellMesh;
     public GameObject interactWith;
     public byte heldItemIndex;
     public Prop[] inventory = new Prop[5];
@@ -84,14 +98,89 @@ public class PlayerController : MonoBehaviour
     public float buildupRate = 2;
     public float throwThreshold = 0.25f;
     public LayerMask interactLayers;
-    public Transform interactIcon;
+    //public Transform interactIcon;
     private bool holdingFurniture;
     private bool validFurniture;
 
-    public void Start()
+    #region Colored Debug Message
+    public void ColorDebug(string msg, string hex)
     {
-        if (manager == null) manager = GameObject.FindGameObjectWithTag("GameController").GetComponent<Manager>();
+        if (ColorUtility.TryParseHtmlString($"#{hex}", out _)) Debug.Log($"<color=#{hex}>{msg}</color>");
+    }
+
+    public void ColorDebug(string msg, Color col)
+    {
+        Debug.Log($"<color=#{ColorUtility.ToHtmlStringRGB(col)}>{msg}</color>");
+    }
+    #endregion
+
+    #region Join/Disconnect
+    //Client joins, startup & disable on other clients
+    public override void OnStartClient()
+    {
+        base.OnStartClient();
+
+        ChangeColorServer(playerColor);
+        if (base.IsOwner) {
+            mainCam = Camera.main;
+            mainCam.transform.SetParent(face);
+            mainCam.transform.SetLocalPositionAndRotation(Vector3.zero, Quaternion.identity);
+            playerModel.gameObject.layer = 4;
+            Startup();
+        } else {
+            //Rather than disabling it keep it for snow update?
+            nametag.text = $"#{base.OwnerId}";
+            GetComponent<PlayerInput>().enabled = false;
+            eventSystem.SetActive(false);
+            this.enabled = false;
+        }
+    }
+
+    //Client quit, split camera, unload dungeon, & show ui
+    public override void OnStopClient()
+    {
+        if (!base.IsOwner) return;
+        Debug.Log($"Exit network. Return to title screen...");
+        DetachCamera();
+        manager.HideMainUI(true);
+        if (base.IsOwner) UnloadDungeon();
+        base.OnStopClient();
+    }
+
+    //Server closed, split camera before
+    public override void OnStopServer()
+    {
+        Debug.Log($"Server closed. Return to title screen...");
+        DetachCamera();
+        base.OnStopServer();
+    }
+
+    //Grab new player nametag for previous players
+    public override void OnSpawnServer(NetworkConnection connection)
+    {
+        base.OnSpawnServer(connection);
+        StartCoroutine(WaitForJoin());
+    }
+
+    //Waits 1/10th second to grab all other player nametags after a player joins
+    private IEnumerator WaitForJoin()
+    {
+        yield return new WaitForSeconds(0.1f);
+        GameObject[] others = GameObject.FindGameObjectsWithTag("Player");
+        otherNametags = new Transform[others.Length];
+        for (byte p = 0; p < others.Length; p++) {
+            if (others[p].TryGetComponent<PlayerController>(out PlayerController player)) {
+                if (player.Equals(this)) continue;
+                otherNametags[player.OwnerId] = player.nametag.transform.parent;
+            }
+        }
+    }
+
+    //Load in the player settings from player prefs
+    private void Startup()
+    {
         Cursor.lockState = CursorLockMode.Locked;
+        nametag.enabled = false;
 
         //Load up fps settings
         int fps = ReadPref("Framerate");
@@ -99,10 +188,10 @@ public class PlayerController : MonoBehaviour
 
         //Load up vsync settings
         int v = ReadPref("Vsync");
-        if (v != 0) Sync(1);
+        if (v != 0) VSync(1);
         else {
             vsyncToggle.isOn = false;
-            Sync(0);
+            VSync(0);
         }
 
         //Load up fov settings
@@ -115,7 +204,6 @@ public class PlayerController : MonoBehaviour
         for (int i = 0; i < resolutions.Length; i++) list.Insert(0, resolutions[i].ToString());
         resolutionDropdown.AddOptions(list);
         double hertz = ReadResolution();
-        //Debug.Log($"<color=#009999>{Display.main.systemWidth} x {Display.main.systemHeight} @ {Screen.currentResolution.refreshRateRatio}Hz</color>");
         for (int i = 0; i < resolutions.Length; i++) {
             if (resolutions[i].Equals(saved) || (resolutions[i].width.Equals(saved.width) && resolutions[i].height.Equals(saved.height) && resolutions[i].refreshRateRatio.value.Equals(hertz))) {
                 resolutionDropdown.value = resolutions.Length - 1 - i;
@@ -137,50 +225,79 @@ public class PlayerController : MonoBehaviour
         if (PlayerPrefs.HasKey("Color")) lastColor = PlayerPrefs.GetString("Color");
         if (ColorUtility.TryParseHtmlString($"#{lastColor}", out Color c)) {
             playerColor = c;
-            GetComponent<Renderer>().material.color = playerColor;
-            Debug.Log("Colro");
+            ChangeColorServer(c);
+        }
+    }
+
+    //Split cam before destruction
+    private void OnDestroy()
+    {
+        DetachCamera();
+    }
+
+    //Detaches camera from player
+    public void DetachCamera()
+    {
+        if (mainCam == null) return;
+        mainCam.transform.parent = null;
+        mainCam.transform.SetPositionAndRotation(Vector3.up * 3, Quaternion.identity);
+    }
+
+    //Return to main menu
+    public void ExitGame()
+    {
+        if (!paused) return;
+
+        if (base.OwnerId == 0) manager.StartServer(true);
+        else manager.StartClient(true);
+    }
+    #endregion
+
+    //Find the managers & sync colors
+    private void Awake()
+    {
+        if (manager == null) {
+            manager = GameObject.FindGameObjectWithTag("GameController").GetComponent<Manager>();
+            networker = manager.PlayerSetup(this);
+        }
+
+        //Tell all other players to send in their colors & nametags
+        GameObject[] others = GameObject.FindGameObjectsWithTag("Player");
+        otherNametags = new Transform[others.Length];
+        for (byte p = 0; p < others.Length; p++) {
+            if (others[p].TryGetComponent<PlayerController>(out PlayerController player)) {
+                if (player.Equals(this)) continue;
+                if (player.playerColor != Color.clear) player.ChangeColorServer(player.playerColor);
+                otherNametags[player.OwnerId] = player.nametag.transform.parent;
+            }
         }
     }
 
     public void Update()
     {
+        //Snow non owner
+        if (!base.IsOwner) {
+            if (snowDepth > 0) {
+                if (Physics.Raycast(transform.position, Vector3.down, out RaycastHit snow, snowDepth, 512)) {
+                    if (snow.collider.gameObject.TryGetComponent<SnowySurface>(out SnowySurface script)) {
+                        script.Carve(snow.triangleIndex * 3, 90 * Time.deltaTime * snow.barycentricCoordinate);
+                    }
+                }
+            }
+            return;
+        }
+
+        //Other player nametags face camera
+        Vector3 flatPos = new Vector3(transform.position.x, 0, transform.position.z);
+        for (byte n = 0; n < otherNametags.Length; n++) {
+            if (n == base.OwnerId) continue;
+            if (otherNametags[n] != null) otherNametags[n].LookAt(flatPos + Vector3.Scale(otherNametags[n].position, Vector3.up), Vector3.up);
+        }
+
         //Separate interpretation when interacting
         if (interacting) {
             InteractionCycle();
             return;
-        }
-
-        //Pause cant move
-        if (paused) return;
-
-        //Looking at raycast
-        if (Physics.SphereCast(head.position, 0.05f, head.forward, out RaycastHit interact, 2.95f, interactLayers)) {
-            if (!interactIcon.gameObject.activeSelf) interactIcon.gameObject.SetActive(true);
-            if (interactWith == null || interactWith != interact.collider.gameObject) interactWith = interact.collider.gameObject;
-            if (interact.collider.gameObject.TryGetComponent<MeshFilter>(out MeshFilter m)) {
-                if (selectionShellMesh.mesh != m.mesh) {
-                    selectionShellMesh.mesh = m.mesh;
-                    selectionShellObject.SetParent(interact.collider.transform, false);
-                }
-            }
-            interactIcon.position = interact.point;
-        } else {
-            if (interactIcon.gameObject.activeSelf) interactIcon.gameObject.SetActive(false);
-            if (interactWith != null) interactWith = null;
-            if (selectionShellMesh.mesh != null) selectionShellMesh.mesh = null;
-        }
-
-        //Furniture placement raycast
-        if (holdingFurniture) {
-            Furniture decor = inventory[heldItemIndex].GetComponent<Furniture>();
-            if (Physics.Raycast(head.position, head.forward, out RaycastHit place, 5, groundLayers)) {
-                validFurniture = decor.MoveOutline(place);
-                if (validFurniture) {
-                    if (!decor.visible) decor.Outline(true);
-                } else if (decor.visible) decor.Outline(false);
-            } else if (decor.visible) {
-                decor.Outline(false);
-            }
         }
 
         //Launch stun
@@ -246,9 +363,6 @@ public class PlayerController : MonoBehaviour
             }
         }
 
-        //Throwing
-        if (dropping) throwTimer = Mathf.Clamp(throwTimer + Time.deltaTime * buildupRate, 0, buildupRate * 2);
-
         //Movement logic
         if (moving || wasLaunched) {
             float moveMulti = moveSpeed * Time.deltaTime;
@@ -273,6 +387,43 @@ public class PlayerController : MonoBehaviour
             transform.position += movementDir;
         }
 
+        //Pause cant input
+        if (paused) return;
+
+        //Looking at raycast
+        if (Physics.SphereCast(head.position, 0.05f, head.forward, out RaycastHit interact, 2.95f, interactLayers)) {
+            //if (!interactIcon.gameObject.activeSelf) interactIcon.gameObject.SetActive(true);
+            if (interactWith == null || interactWith != interact.collider.gameObject) interactWith = interact.collider.gameObject;
+            /*if (interact.collider.gameObject.TryGetComponent<MeshFilter>(out MeshFilter m)) {
+                if (selectionShellMesh.mesh != m.mesh) {
+                    selectionShellMesh.mesh = m.mesh;
+                    selectionShellObject.SetParent(interact.collider.transform, false);
+                }
+            }
+            */
+            //interactIcon.position = interact.point;
+        } else {
+            //if (interactIcon.gameObject.activeSelf) interactIcon.gameObject.SetActive(false);
+            if (interactWith != null) interactWith = null;
+            //if (selectionShellMesh.mesh != null) selectionShellMesh.mesh = null;
+        }
+
+        //Furniture placement raycast
+        if (holdingFurniture) {
+            Furniture decor = inventory[heldItemIndex].GetComponent<Furniture>();
+            if (Physics.Raycast(head.position, head.forward, out RaycastHit place, 5, groundLayers)) {
+                validFurniture = decor.MoveOutline(place);
+                if (validFurniture) {
+                    if (!decor.visible) decor.Outline(true);
+                } else if (decor.visible) decor.Outline(false);
+            } else if (decor.visible) {
+                decor.Outline(false);
+            }
+        }
+
+        //Throwing
+        if (dropping) throwTimer = Mathf.Clamp(throwTimer + Time.deltaTime * buildupRate, 0, buildupRate * 2);
+
         //Crouch head move
         if (isSneaking) {
             if (head.localPosition.y > 0.05f) head.localPosition = Vector3.Lerp(head.localPosition, Vector3.zero, Time.deltaTime * 30);
@@ -292,6 +443,7 @@ public class PlayerController : MonoBehaviour
         }
     }
 
+    #region Movement
     //Return multiplicitive value for how much a player slides on specific tagged surfaces
     private float Friction(string tag = default)
     {
@@ -358,7 +510,9 @@ public class PlayerController : MonoBehaviour
         launchStunTime = Mathf.Clamp01(launchVector.magnitude / 2) + 0.1f;
         Debug.Log($"Stun {launchStunTime}sec");
     }
+    #endregion
 
+    #region Interaction
     //Hide and activate the model of the held item
     private bool UpdateItemHeld(byte index)
     {
@@ -411,7 +565,7 @@ public class PlayerController : MonoBehaviour
         //Yaw
         Vector2 flat = new Vector2(target.forward.x, target.forward.z).normalized;
         Vector2 xing = new Vector2(target.right.x, target.right.z).normalized;
-        Vector2 look = new Vector2(transform.forward.x , transform.forward.z);
+        Vector2 look = new Vector2(transform.forward.x, transform.forward.z);
         float dot = 1 - Vector2.Dot(look, flat);
         sbyte sign = (sbyte)-Mathf.Sign(Vector2.Dot(look, xing));
         if (dot > 0.001f) transform.Rotate(Vector3.up, t * Time.deltaTime * 360 * dot * sign);
@@ -421,11 +575,12 @@ public class PlayerController : MonoBehaviour
         if (target.forward.y != 0) dot = -Mathf.Asin(target.forward.y) * ANGLE;
         head.localEulerAngles = new Vector3(Mathf.LerpAngle(head.localEulerAngles.x, dot, t * Time.deltaTime * 5), 0);
     }
+    #endregion
 
-    //Return to main menu
-    public void ExitGame()
+    //Remove the generated dungeon
+    public void UnloadDungeon()
     {
-        Debug.Log($"Exit to main menu");
+        manager.Clear();
     }
 
     //Get/Set weather to/from manager
@@ -450,11 +605,12 @@ public class PlayerController : MonoBehaviour
     }
 
     #region Settings
+
+    #region Visuals
     //Change the resolutions
     public void ChangeResolution()
     {
         int id = resolutions.Length - 1 - resolutionDropdown.value;
-        Debug.Log(resolutions[id]);
         Screen.SetResolution(resolutions[id].width, resolutions[id].height, Screen.fullScreenMode, resolutions[id].refreshRateRatio);
         SetResolution(resolutions[id]);
     }
@@ -477,11 +633,11 @@ public class PlayerController : MonoBehaviour
     public void ToggleVsync()
     {
         useVsync = (byte)((useVsync + 1) % 2);
-        Sync(useVsync);
+        VSync(useVsync);
     }
 
     //Set the vsync
-    private void Sync(byte sync)
+    private void VSync(byte sync)
     {
         useVsync = sync;
         QualitySettings.vSyncCount = sync;
@@ -496,7 +652,9 @@ public class PlayerController : MonoBehaviour
         SetSlider(fov, "FOV");
         manager.SetGrass();
     }
+    #endregion
 
+    #region Audio
     //Set all volume
     public void ChangeVolume()
     {
@@ -510,7 +668,9 @@ public class PlayerController : MonoBehaviour
         voiceVolume.value = Mathf.RoundToInt(voiceVolume.slider.value);
         SetSlider(voiceVolume, "Voices");
     }
+    #endregion
 
+    #region Grass
     //Set grass quality
     public void ChangeGQ()
     {
@@ -534,17 +694,37 @@ public class PlayerController : MonoBehaviour
         grassLod.text.text = $"Grass Detail: {grassLod.value / 10.0f}m";
         manager.SetGrass();
     }
+    #endregion
 
+    #region Color
+    //Color is the only setting that has to be synced across players
     //Set player color
     public void ChangeColor(Color input)
     {
         lastColor = ColorUtility.ToHtmlStringRGB(input);
         playerColor = input;
-        GetComponent<Renderer>().material.color = playerColor;
+        //GetComponent<Renderer>().material.color = playerColor;
         SetPref("Color", lastColor);
+        ChangeColorServer(playerColor);
     }
 
-    //update a slider
+    //Change player color to passed color
+    [ServerRpc]
+    public void ChangeColorServer(Color c)
+    {
+        ChangeColorClient(c);
+    }
+
+    //Set material color clientside
+    [ObserversRpc]
+    public void ChangeColorClient(Color c)
+    {
+        modelRenderer.material.color = c * 1.41421f;
+    }
+    #endregion
+
+    #region UI & saving
+    //Update a slider
     private void SetSlider(UISetting settings, string key)
     {
         settings.slider.value = settings.value;
@@ -552,7 +732,7 @@ public class PlayerController : MonoBehaviour
         SetPref(key, settings.value);
     }
 
-    //initialize ui settings
+    //Initialize ui settings
     private void InitSlider(UISetting settings, string key, int value)
     {
         settings.value = ReadPref(key);
@@ -579,6 +759,7 @@ public class PlayerController : MonoBehaviour
         PlayerPrefs.SetString(key, value);
     }
 
+    //Gets player's saved resolution
     private double ReadResolution()
     {
         if (PlayerPrefs.HasKey("Resolution")) {
@@ -596,6 +777,8 @@ public class PlayerController : MonoBehaviour
     {
         PlayerPrefs.SetString("Resolution", $"{current.width}, {current.height}, {current.refreshRateRatio.value}");
     }
+    #endregion
+
     #endregion
 
     #region Controls
@@ -626,6 +809,10 @@ public class PlayerController : MonoBehaviour
     //Movement input
     public void Movement(InputAction.CallbackContext ctx)
     {
+        if (paused) {
+            moving = false;
+            return;
+        }
         if (ctx.started) moving = true;
         movementInput = ctx.ReadValue<Vector2>();
         if (ctx.canceled) moving = false;
@@ -635,8 +822,10 @@ public class PlayerController : MonoBehaviour
     public void Jump(InputAction.CallbackContext ctx)
     {
         if (interacting) {
-            //Minigame input
-            interact.JumpInput();
+            if (ctx.started) {
+                interact.JumpInput();
+                hasJumped = true;
+            }
         } else if (!hasJumped) {
             risingJump = true;
             hasJumped = true;
@@ -653,21 +842,43 @@ public class PlayerController : MonoBehaviour
         if (ctx.canceled) isSprinting = false;
     }
     
-    //Sneak input
+    //Sneak input - Sync up player squash
     public void Sneak(InputAction.CallbackContext ctx)
     {
         if (interacting) {
-            FreePlayer();
+            if (ctx.started) FreePlayer();
             return;
         }
         isSprinting = false;
         if (ctx.started) isSneaking = true;
         if (ctx.canceled) isSneaking = false;
+        ServerCrouch(isSneaking);
+    }
+
+    //Tell server that player is crouching
+    [ServerRpc]
+    public void ServerCrouch(bool crouching)
+    {
+        ClientCrouch(crouching);
+    }
+
+    //Update player model to squish when crouching
+    [ObserversRpc]
+    public void ClientCrouch(bool crouching)
+    {
+        if (crouching) {
+            playerModel.localScale = new Vector3(0.9f, 0.9f, 0.5f);
+            playerModel.localPosition = Vector3.down * 0.4f;
+        } else {
+            playerModel.localScale = Vector3.one * 0.9f;
+            playerModel.localPosition = Vector3.zero;
+        }
     }
 
     //Grab input
     public void Grab(InputAction.CallbackContext ctx)
     {
+        if (paused) return;
         if (ctx.started) {
             if (interactWith != null) {
                 //Check if player can actually hold an item
@@ -697,6 +908,7 @@ public class PlayerController : MonoBehaviour
     //Drop input
     public void Drop(InputAction.CallbackContext ctx)
     {
+        if (paused) return;
         //If holding item, start building throw charge to be applied on release of button
         if (ctx.started && inventory[heldItemIndex] != null) dropping = true;
         if (ctx.canceled && dropping && inventory[heldItemIndex] != null) {
@@ -722,17 +934,17 @@ public class PlayerController : MonoBehaviour
     }
 
     //Hotkey
-    public bool Hotkey(InputAction.CallbackContext ctx)
+    public void Hotkey(InputAction.CallbackContext ctx)
     {
-        if (holdingFurniture) return false;
+        if (holdingFurniture) return;
         Vector3 input = ctx.ReadValue<Vector3>();
-        if (input.y > 0) return UpdateItemHeld(0);
-        if (input.y < 0) return UpdateItemHeld(1);
-        if (input.x > 0) return UpdateItemHeld(2);
-        if (input.x < 0) return UpdateItemHeld(3);
-        if (input.z > 0) return UpdateItemHeld(4);
-        //if (input.z < 0) return UpdateItemHeld(5);
-        return false;
+        for (byte i = 0; i < 5; i++) {
+            //check signs of x y z silly
+            if (Mathf.Sign(0.5f - i % 2) * input[i / 2] > 0) {
+                UpdateItemHeld(i);
+                return;
+            }
+        }
     }
     #endregion
 }
