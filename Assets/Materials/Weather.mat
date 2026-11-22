@@ -111,7 +111,7 @@ Material:
     - _GlossMapScale: 0
     - _Glossiness: 0
     - _GlossyReflections: 0
-    - _ID: 0
+    - _ID: 1
     - _Metallic: 0
     - _OcclusionStrength: 1
     - _Parallax: 1
@@ -129,7 +129,7 @@ Material:
     - _WEATHER: 0
     - _Weather_ID: 2
     - _WorkflowMode: 1
-    - _XOffset: 212.15819
+    - _XOffset: 6.1461177
     - _YOffset: 1.26
     - _ZWrite: 1
     m_Colors:

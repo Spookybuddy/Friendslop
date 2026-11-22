@@ -8,6 +8,7 @@ using FishNet.Object;
 using FishNet.Managing;
 using FishNet.Transporting;
 using System.Collections;
+using FishNet.Object.Synchronizing;
 
 public class PlayerController : NetworkBehaviour
 {
@@ -41,6 +42,7 @@ public class PlayerController : NetworkBehaviour
     public UISetting grassQuality;
     public UISetting grassLod;
     public Color playerColor = Color.clear;
+    //public readonly SyncVar<Color> fur = new SyncVar<Color>();
     public string lastColor = "FFFFFF";
     public Renderer modelRenderer;
 
@@ -123,6 +125,7 @@ public class PlayerController : NetworkBehaviour
             mainCam = Camera.main;
             mainCam.transform.SetParent(face);
             mainCam.transform.SetLocalPositionAndRotation(Vector3.zero, Quaternion.identity);
+            playerModel.gameObject.layer = 4;
             Startup();
         } else {
             //Rather than disabling it keep it for snow update?
@@ -136,6 +139,7 @@ public class PlayerController : NetworkBehaviour
     //Client quit, split camera, unload dungeon, & show ui
     public override void OnStopClient()
     {
+        if (!base.IsOwner) return;
         Debug.Log($"Exit network. Return to title screen...");
         DetachCamera();
         manager.HideMainUI(true);

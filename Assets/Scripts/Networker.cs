@@ -22,14 +22,14 @@ public class Networker : NetworkBehaviour
     public Transform daylight;
     public Manager manager;
 
-    /*
+    
     public override void OnStartClient()
     {
         base.OnStartClient();
 
         if (!base.IsOwner) this.enabled = false;
     }
-    */
+    
 
     private void Update()
     {
@@ -54,13 +54,13 @@ public class Networker : NetworkBehaviour
     }
     #endregion
 
-    [ServerRpc]
+    [ServerRpc(RequireOwnership = false)]
     public void ShareSeedServer(int seed, float currentTime)
     {
         ShareSeedClient(seed, currentTime);
     }
 
-    [ObserversRpc]
+    [ObserversRpc(BufferLast = true)]
     public void ShareSeedClient(int seed, float currentTime)
     {
         ColorDebug($"Seed: {seed}", "995512");
