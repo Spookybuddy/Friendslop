@@ -7,11 +7,13 @@ public class Interaction : Prop
     public float playerForce = 0.5f;
     public bool lockPlayer = false;
     public bool snapIntoPlace = false;
-    public Vector2 threshold;
+    public Vector2 threshold = Vector2.one;
     public UnityEvent onInteract;
     public UnityEvent onCancel;
-    public UnityEvent onMoveSide;
+    public UnityEvent onMoveLeft;
+    public UnityEvent onMoveRight;
     public UnityEvent onMoveUp;
+    public UnityEvent onMoveDown;
     public UnityEvent onJump;
 
     //Use the item storage as the position for the player to be moved to
@@ -28,7 +30,7 @@ public class Interaction : Prop
         //If transform for player, move player to that transform
         if (itemStorage != null) {
             if (!player.GetComponentInParent<PlayerController>().LockIntoPlace(this, itemStorage)) return false;
-            isHeld = true;
+            ServerHeld(true);
             onInteract.Invoke();
         }
         return false;
@@ -37,14 +39,22 @@ public class Interaction : Prop
     //Player stops interacting
     public override void Drop(Vector3 pos)
     {
-        isHeld = false;
+        ServerHeld(false);
         onCancel.Invoke();
         return;
     }
 
     public void MoveInput(Vector2 mov)
     {
+        if (Mathf.Abs(mov.x) > threshold.x) {
+            if (Mathf.Sign(mov.x) < 0) onMoveLeft.Invoke();
+            else onMoveRight.Invoke();
+        }
 
+        if (Mathf.Abs(mov.y) > threshold.y) {
+            if (Mathf.Sign(mov.y) < 0) onMoveDown.Invoke();
+            else onMoveUp.Invoke();
+        }
     }
 
     public void JumpInput()

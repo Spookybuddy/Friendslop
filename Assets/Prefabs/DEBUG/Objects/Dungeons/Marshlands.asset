@@ -10,7 +10,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: ab58d9df4218f5a438c9a4a1d4b68dbb, type: 3}
-  m_Name: Smol
+  m_Name: Marshlands
   m_EditorClassIdentifier: Assembly-CSharp::Dungeon
   entranceRoom: {fileID: 1385319863841229270, guid: 00376500223630c47ba79bea08c4bbbe,
     type: 3}
@@ -27,8 +27,8 @@ MonoBehaviour:
     spawnWeight: 16
   tilePlacementAttempts: 5
   tileWeightSum: 99
-  targetSurfaceArea: 1010
-  minimumSurfaceArea: 500
+  targetSurfaceArea: 2394
+  minimumSurfaceArea: 1968
   minRotationVariation: 30
   maxRotationVariation: 120
   pathPrefab: {fileID: 2947222615814322716, guid: bf7877b150348ec41ad0519c37a7be3c,
@@ -40,12 +40,12 @@ MonoBehaviour:
   selfConnections: 0
   distanceMultiplier: 3
   dotLimit: -0.7
-  chunkPrefab: {fileID: 4943488530812381464, guid: 6bf29aef116d38040be7d101f3416a8e,
+  chunkPrefab: {fileID: 5381765839100838825, guid: 4b5e91df476cdde4083a6d4963f0d7cc,
     type: 3}
   extraChunks: 3
   perlinScale: {x: 3, y: 1, z: 3}
-  slerpDistance: 4
-  extra0Point: 0
+  slerpDistance: 2
+  extra0Point: 1
   outsideObjects:
   - Object: {fileID: 11400000, guid: 85959d84091879d4db9214ed562728d2, type: 2}
     randomVariation: {x: 1, y: 0, z: 1}
@@ -54,14 +54,20 @@ MonoBehaviour:
   objectWeightSum: 10
   mapHeight: 50
   atmospheres:
-  - weather: 0
-    fog: {fileID: 11400000, guid: e558bfae6b322fc468864162710edf04, type: 2}
-    weight: 5
   - weather: 1
     fog: {fileID: 11400000, guid: e558bfae6b322fc468864162710edf04, type: 2}
-    weight: 5
-  atmosWeightSum: 25
+    weight: 6
+  - weather: 1
+    fog: {fileID: 11400000, guid: 751c46b2984b091469fd23bd896809d8, type: 2}
+    weight: 4
+  - weather: 2
+    fog: {fileID: 11400000, guid: e558bfae6b322fc468864162710edf04, type: 2}
+    weight: 6
+  - weather: 2
+    fog: {fileID: 11400000, guid: 751c46b2984b091469fd23bd896809d8, type: 2}
+    weight: 4
+  atmosWeightSum: 20
   grassColorNoise: 32
-  grassAlphaNoise: 2
+  grassAlphaNoise: 17
   channelNoiseScale: {x: 0.1, y: 0.1, z: 1}
   description: A simple trail through the woods with diverse wildlife.

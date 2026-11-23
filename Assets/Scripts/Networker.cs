@@ -15,7 +15,7 @@ public class Networker : NetworkBehaviour
     public bool roundStarted = false;
     [Tooltip("Dungeons available to be played.")]
     public List<Dungeon> dungeons = new List<Dungeon>();
-    private byte dungeonIndex = 0;
+    public byte dungeonIndex = 0;
     [Tooltip("Time elapsed from the day.")]
     public float gameTime = 0;
     public TextMeshProUGUI timer;
@@ -53,6 +53,19 @@ public class Networker : NetworkBehaviour
         Debug.Log($"<color=#{ColorUtility.ToHtmlStringRGB(col)}>{msg}</color>");
     }
     #endregion
+
+    [ServerRpc(RequireOwnership = false)]
+    public void DungeonDisplayServer(byte id, bool enable)
+    {
+        DungeonDisplayClient(id, enable);
+    }
+
+    [ObserversRpc]
+    public void DungeonDisplayClient(byte id, bool e)
+    {
+        dungeonIndex = id;
+        manager.DungeonDisplay(dungeons[dungeonIndex], e);
+    }
 
     [ServerRpc(RequireOwnership = false)]
     public void ShareSeedServer(int seed, float currentTime)

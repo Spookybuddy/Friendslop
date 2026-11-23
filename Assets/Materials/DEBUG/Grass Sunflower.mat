@@ -133,7 +133,7 @@ Material:
     - _GlossyReflections: 0
     - _GrassChannel: 1
     - _GrassFalloff: 0.5
-    - _GrassLODFade: 32
+    - _GrassLODFade: 16
     - _GrassThreshold: 0.5
     - _Metallic: 0
     - _MinimumRender: 0
@@ -148,7 +148,7 @@ Material:
     - _SrcBlendAlpha: 1
     - _Surface: 0
     - _TessellationGrassDistance: 0.5
-    - _WeedRarity: 16
+    - _WeedRarity: 5
     - _WindFrequency: 0.011
     - _WorkflowMode: 1
     - _ZWrite: 1
