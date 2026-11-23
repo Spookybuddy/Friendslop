@@ -1,5 +1,6 @@
 using FishNet.Managing;
 using FishNet.Transporting;
+using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -29,6 +30,8 @@ public class Manager : MonoBehaviour
     [Header("Interaction Objects")]
     [Tooltip("Dungeon selection canvas.")]
     public GameObject dungeonSelectObject;
+    [Tooltip("Dungeon text display.")]
+    public TextMeshProUGUI dungeonInfo;
     [Tooltip("Player color image.")]
     public GameObject colorPickerObject;
     [Tooltip("Player's current color selected.")]
@@ -45,6 +48,8 @@ public class Manager : MonoBehaviour
 
     private void Update()
     {
+        if (player == null) return;
+
         //Once dungeon is generated, update clientside visuals & notify networker, which will start game once all players have generated
         if (generating) {
             if (generation.dungeonGenerated) {
@@ -52,7 +57,6 @@ public class Manager : MonoBehaviour
                 SetFog(generation.dungeon.atmospheres[generation.atmoID].fog);
                 player.SetSnowDepth(generation.snowRayLength);
                 player.Weather(generation.dungeon.atmospheres[generation.atmoID].weather);
-                SnowSync();
             }
         }
 
@@ -127,7 +131,7 @@ public class Manager : MonoBehaviour
     {
         if (generating) return;
         generating = true;
-        //generation.dungeon = dungeons[dungeonIndex];
+        generation.dungeon = manager.dungeons[manager.dungeonIndex];
         generation.seed = seed;
         generation.Routine();
         grassMaterials[1] = generation.GetGrassMat();
@@ -151,6 +155,15 @@ public class Manager : MonoBehaviour
         fogMaterial.SetFloat("_Raymarch_Distance_Bias", settings.Blend);
     }
 
+    //Reset fog settings
+    public void ClearFog()
+    {
+        fogMaterial.SetColor("_Colour", Color.clear);
+        fogMaterial.SetFloat("_Density", 1);
+        fogMaterial.SetFloat("_Raymarch_Distance", 50);
+        fogMaterial.SetFloat("_Raymarch_Distance_Bias", 0.5f);
+    }
+
     //Update the grass settings for current grass loaded
     public void SetGrass()
     {
@@ -159,19 +172,6 @@ public class Manager : MonoBehaviour
             grassMaterials[i].SetFloat("_BladeSegments", player.grassQuality.value);
             grassMaterials[i].SetFloat("_GrassLODFade", player.grassLod.value * 0.1f);
             grassMaterials[i].SetFloat("_FrustrumCull", player.fov.value * 0.05f + 2);
-        }
-    }
-
-    //Other player snow update
-    public void SnowSync()
-    {
-        GameObject[] others = GameObject.FindGameObjectsWithTag("Player");
-        if (others.Length > byte.MaxValue) return; //If you're genuinely playing with 256+ people, how?
-        for (byte p = 0; p < others.Length; p++) {
-            if (others[p].TryGetComponent<PlayerController>(out PlayerController other)) {
-                if (other.Equals(player)) continue;
-                other.SetSnowDepth(generation.snowRayLength);
-            }
         }
     }
 
@@ -186,19 +186,25 @@ public class Manager : MonoBehaviour
 
     public void ToggleDungeonSelect(bool toggle)
     {
+        manager.DungeonDisplayServer(manager.dungeonIndex, toggle);
         dungeonSelectObject.SetActive(toggle);
+    }
+
+    public void NextDungeon(int dir)
+    {
+        if (manager.dungeons.Count <= 1) manager.DungeonDisplayServer(manager.dungeonIndex, true);
+        else manager.DungeonDisplayServer((byte)((manager.dungeonIndex + dir + manager.dungeons.Count) % manager.dungeons.Count), true);
+    }
+
+    public void DungeonDisplay(Dungeon dung, bool status)
+    {
+        dungeonSelectObject.SetActive(dung != null && status);
+        dungeonInfo.text = $"{dung.name}\n\n{dung.description}";
     }
 
     public void ToggleColorPicker(bool toggle)
     {
         colorPickerObject.SetActive(toggle);
-    }
-
-    //Change which dungeon is selected
-    public void SelectDungeon(byte add)
-    {
-        //Should check that all players have matching dungeons (some unique value generated per object?)
-        //dungeonIndex = (byte)((dungeonIndex + add) % 255);
     }
 
     //Set player color

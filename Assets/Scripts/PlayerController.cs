@@ -53,6 +53,7 @@ public class PlayerController : NetworkBehaviour
     private Transform interactingWith;
     private float interactLerp = 0;
     private Interaction interact;
+    private float interactInputCd = -1;
     private const float ANGLE = 57.2957795130823208768f;
 
     private const float jumpStartEval = 0.5f;
@@ -241,6 +242,8 @@ public class PlayerController : NetworkBehaviour
         if (mainCam == null) return;
         mainCam.transform.parent = null;
         mainCam.transform.SetPositionAndRotation(Vector3.up * 3, Quaternion.identity);
+        Weather(Weathers.None);
+        manager.ClearFog();
     }
 
     //Return to main menu
@@ -440,6 +443,7 @@ public class PlayerController : NetworkBehaviour
         if (interactingWith != null) {
             Interpolate(interactingWith, interactLerp);
             if (interact.snapIntoPlace && interactLerp > 0) interactLerp = Mathf.Max(interactLerp - Time.deltaTime * 2, 0);
+            interactInputCd -= Time.deltaTime;
         }
     }
 
@@ -548,6 +552,7 @@ public class PlayerController : NetworkBehaviour
         interacting = false;
         interactLocked = false;
         interactingWith = null;
+        interactInputCd = -1;
         if (interact != null) {
             interact.Drop(default);
             interact = null;
@@ -810,6 +815,12 @@ public class PlayerController : NetworkBehaviour
     public void Movement(InputAction.CallbackContext ctx)
     {
         if (paused) {
+            moving = false;
+            return;
+        }
+        if (interacting) {
+            if (interactInputCd > 0) return;
+            interact.MoveInput(ctx.ReadValue<Vector2>());
             moving = false;
             return;
         }

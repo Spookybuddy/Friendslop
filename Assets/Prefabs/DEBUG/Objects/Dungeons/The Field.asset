@@ -10,7 +10,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: ab58d9df4218f5a438c9a4a1d4b68dbb, type: 3}
-  m_Name: Dungeon
+  m_Name: The Field
   m_EditorClassIdentifier: Assembly-CSharp::Dungeon
   entranceRoom: {fileID: 1385319863841229270, guid: 00376500223630c47ba79bea08c4bbbe,
     type: 3}
@@ -27,25 +27,25 @@ MonoBehaviour:
     spawnWeight: 16
   tilePlacementAttempts: 5
   tileWeightSum: 99
-  targetSurfaceArea: 3093
-  minimumSurfaceArea: 2700
-  minRotationVariation: 30
-  maxRotationVariation: 120
+  targetSurfaceArea: 1968
+  minimumSurfaceArea: 1543
+  minRotationVariation: 10
+  maxRotationVariation: 100
   pathPrefab: {fileID: 2947222615814322716, guid: bf7877b150348ec41ad0519c37a7be3c,
     type: 3}
   quality: 18
   pathWidth: 2
   pathHeight: 5
   moreConnections: 1
-  selfConnections: 0
-  distanceMultiplier: 3
-  dotLimit: -0.7
-  chunkPrefab: {fileID: 5381765839100838825, guid: 1a03dc2031ff6c64b994de819d5708c7,
+  selfConnections: 1
+  distanceMultiplier: 5.5
+  dotLimit: 0
+  chunkPrefab: {fileID: 5381765839100838825, guid: 23ccb2ccd198b2545ab844065e4de07c,
     type: 3}
   extraChunks: 3
   perlinScale: {x: 3, y: 1, z: 3}
-  slerpDistance: 4
-  extra0Point: 0
+  slerpDistance: 1
+  extra0Point: 1
   outsideObjects:
   - Object: {fileID: 11400000, guid: 85959d84091879d4db9214ed562728d2, type: 2}
     randomVariation: {x: 1, y: 0, z: 1}
@@ -56,21 +56,10 @@ MonoBehaviour:
   atmospheres:
   - weather: 0
     fog: {fileID: 11400000, guid: e558bfae6b322fc468864162710edf04, type: 2}
-    weight: 5
-  - weather: 1
-    fog: {fileID: 11400000, guid: e558bfae6b322fc468864162710edf04, type: 2}
-    weight: 5
-  - weather: 2
-    fog: {fileID: 11400000, guid: e558bfae6b322fc468864162710edf04, type: 2}
-    weight: 5
-  - weather: 3
-    fog: {fileID: 11400000, guid: e558bfae6b322fc468864162710edf04, type: 2}
-    weight: 5
-  - weather: 4
-    fog: {fileID: 11400000, guid: e558bfae6b322fc468864162710edf04, type: 2}
-    weight: 5
-  atmosWeightSum: 25
-  grassColorNoise: 32
-  grassAlphaNoise: 2
+    weight: 6
+  atmosWeightSum: 6
+  grassColorNoise: 1072
+  grassAlphaNoise: 81
   channelNoiseScale: {x: 0.1, y: 0.1, z: 1}
-  description: A simple trail through the woods with diverse wildlife.
+  description: The large field of wheat owned by the nearby farmer. The paths were
+    clearly made by aliens.

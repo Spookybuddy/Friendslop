@@ -107,7 +107,7 @@ Material:
     - _BladeBendDistance: -0.2
     - _BladeHeightMax: 0.6
     - _BladeHeightMin: 0.35
-    - _BladeSegments: 2
+    - _BladeSegments: 1
     - _BladeWidthMax: 0.1
     - _BladeWidthMin: 0.02
     - _Blend: 0
@@ -133,9 +133,10 @@ Material:
     - _GlossyReflections: 0
     - _GrassChannel: 1
     - _GrassFalloff: 0.5
-    - _GrassLODFade: 32
+    - _GrassLODFade: 16
     - _GrassThreshold: 0.5
     - _Metallic: 0
+    - _MinimumRender: 5
     - _OcclusionStrength: 1
     - _Parallax: 0.005
     - _QueueOffset: 0
@@ -161,6 +162,7 @@ Material:
     - _SpecColor: {r: 0.19999996, g: 0.19999996, b: 0.19999996, a: 1}
     - _TipColor: {r: 0.55133986, g: 0.735849, b: 0.37833747, a: 1}
     - _Variation: {r: 0.5936268, g: 0.67058825, b: 0.27450982, a: 1}
+    - _WeedChannels: {r: 0, g: 0, b: 0, a: 0}
     - _WindVelocity: {r: 1, g: 1, b: 1, a: 1.2}
   m_BuildTextureStacks: []
 --- !u!114 &1174918970055503081

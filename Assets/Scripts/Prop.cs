@@ -1,9 +1,10 @@
+using FishNet.Object;
 using UnityEngine;
 
-public class Prop : MonoBehaviour
+public class Prop : NetworkBehaviour
 {
     //Base class for furniture & items
-    public bool isHeld;
+    public bool isHeld = false;
     protected Vector3 worldScale;
     protected Transform itemStorage;
 
@@ -19,7 +20,8 @@ public class Prop : MonoBehaviour
     {
         //Already being held
         if (isHeld) return false;
-        isHeld = true;
+        ServerHeld(true);
+        //isHeld = true;
         transform.SetParent(player, false);
         return true;
     }
@@ -27,7 +29,8 @@ public class Prop : MonoBehaviour
     //Player drops prop
     public virtual void Drop(Vector3 pos)
     {
-        isHeld = false;
+        ServerHeld(false);
+        //isHeld = false;
         transform.SetParent(itemStorage, true);
         transform.localScale = worldScale;
         transform.position = pos;
@@ -36,7 +39,8 @@ public class Prop : MonoBehaviour
     //Player throws prop
     public virtual void Throw(Vector3 pos, Vector3 direction)
     {
-        isHeld = false;
+        ServerHeld(false);
+        //isHeld = false;
         transform.SetParent(itemStorage, true);
         transform.localScale = worldScale;
         transform.position += pos;
@@ -45,5 +49,17 @@ public class Prop : MonoBehaviour
     public virtual void SnowData(float depth)
     {
 
+    }
+
+    [ServerRpc(RequireOwnership = false)]
+    public void ServerHeld(bool val)
+    {
+        ClientHeld(val);
+    }
+
+    [ObserversRpc]
+    public void ClientHeld(bool val)
+    {
+        isHeld = val;
     }
 }
